@@ -1,0 +1,3 @@
+[submodule "vendor/sources/coffee-script"]
+	path = vendor/sources/coffee-script
+	url = git://github.com/atom/language-coffee-script.git
