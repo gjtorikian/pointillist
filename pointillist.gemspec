@@ -20,6 +20,5 @@ Gem::Specification.new do |s|
   s.test_files    = Dir.glob("test/**/*")
   s.require_paths = ['lib']
 
-  s.add_dependency 'yajl-ruby',   '~> 1.1.0'
-  s.add_dependency 'posix-spawn', '~> 0.3.6'
+  s.add_development_dependency 'rake'
 end
