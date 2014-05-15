@@ -14,7 +14,6 @@ Gem::Specification.new do |s|
   s.email = ['gjtorikian@gmail.com']
   s.license = 'MIT'
 
-
   s.files         = %w(LICENSE.txt README.md Rakefile pointillist.gemspec)
   s.files        += Dir.glob("languages/**/*")
   s.files        += Dir.glob("lib/**/*.rb")
