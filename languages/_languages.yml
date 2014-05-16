@@ -1,2 +1,4 @@
 CoffeeScript:
   path: coffeescript.json
+Ruby:
+  path: ruby.json
