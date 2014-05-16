@@ -20,5 +20,6 @@ Gem::Specification.new do |s|
   s.test_files    = Dir.glob("test/**/*")
   s.require_paths = ['lib']
 
+  s.add_dependency 'textpow', '~> 1.3.1'
   s.add_development_dependency 'rake'
 end
