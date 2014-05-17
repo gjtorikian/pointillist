@@ -55,8 +55,11 @@ module Pointillist
     # Returns html String
     def highlight(text, options = {})
       require 'pp'
-      pp Textpow.syntax("languages/ruby.json").parse(text)
-      Textpow.syntax("ruby").parse(text)
+      x = Pointillist::Processor.load do |processor|
+        syntax_node = Textpow::SyntaxNode.load(File.join(Pointillist.syntax_path, "ruby.json"))
+        syntax_node.parse(text, processor)
+      end.string
+      pp "poop", x
     end
 
     alias_method :==, :equal?

@@ -27,5 +27,6 @@ module Pointillist
   end
 
   require "pointillist/lexer"
+  require "pointillist/processor"
   require "pointillist/version"
 end

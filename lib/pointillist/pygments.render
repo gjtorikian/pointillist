@@ -1,0 +1,115 @@
+---
+name: Pygments
+line:
+  begin: ""
+  end: ""
+tags:
+- begin: <span class="c">
+  end: </span>
+  selector: comment
+- begin: <span class="k">
+  end: </span>
+  selector: keyword, storage
+- begin: <span class="m">
+  end: </span>
+  selector: constant.numeric
+- begin: <span class="no">
+  end: </span>
+  selector: constant
+- begin: <span class="kc">
+  end: </span>
+  selector: constant.language
+- begin: <span class="nv">
+  end: </span>
+  selector: variable.language, variable.other
+- begin: <span class="s">
+  end: </span>
+  selector: string
+- begin: <span class="si">
+  end: </span>
+  selector: constant.character.escape, string source
+- begin: <span class="cp">
+  end: </span>
+  selector: meta.preprocessor
+- begin: <span class="kn">
+  end: </span>
+  selector: keyword.control.import
+- begin: <span class="nf">
+  end: </span>
+  selector: entity.name.function, support.function.any-method
+- begin: <span class="kt">
+  end: </span>
+  selector: entity.name.type
+- begin: <span class="cls">
+  end: </span>
+  selector: entity.other.inherited-class
+- begin: <span class="n">
+  end: </span>
+  selector: variable.parameter
+- begin: <span class="kd">
+  end: </span>
+  selector: storage.type.method
+- begin: <span class="Section">
+  end: </span>
+  selector: meta.section entity.name.section, declaration.section entity.name.section
+- begin: <span class="n">
+  end: </span>
+  selector: support.function
+- begin: <span class="nb">
+  end: </span>
+  selector: support.class, support.type
+- begin: <span class="no">
+  end: </span>
+  selector: support.constant
+- begin: <span class="no">
+  end: </span>
+  selector: support.variable
+- begin: <span class="err">
+  end: </span>
+  selector: invalid
+- begin: <span class="err">
+  end: </span>
+  selector: invalid.deprecated.trailing-whitespace
+- begin: <span class="w">
+  end: </span>
+  selector: text source, string.unquoted
+- begin: <span class="w">
+  end: </span>
+  selector: text source string.unquoted, text source text source
+- begin: <span class="nt">
+  end: </span>
+  selector: meta.tag.preprocessor.xml
+- begin: <span class="cp">
+  end: </span>
+  selector: meta.tag.sgml.doctype, meta.tag.sgml.doctype entity, meta.tag.sgml.doctype string, meta.tag.preprocessor.xml, meta.tag.preprocessor.xml entity, meta.tag.preprocessor.xml string
+- begin: <span class="cp">
+  end: </span>
+  selector: string.quoted.docinfo.doctype.DTD
+- begin: <span class="nt">
+  end: </span>
+  selector: meta.tag, declaration.tag
+- begin: <span class="nt">
+  end: </span>
+  selector: entity.name.tag
+- begin: <span class="na">
+  end: </span>
+  selector: entity.other.attribute-name
+- begin: <span class="na">
+  end: </span>
+  selector: markup.heading
+- begin: <span class="na">
+  end: </span>
+  selector: markup.quote
+- begin: <span class="na">
+  end: </span>
+  selector: markup.list
+listing:
+  begin: <pre>
+  end: </pre>
+document:
+  begin: ""
+  end: ""
+filter: CGI.escapeHTML( @escaped )
+line-numbers:
+  begin: <span class="line-numbers">
+  end: </span>
