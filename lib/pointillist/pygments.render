@@ -6,7 +6,10 @@ line:
 tags:
 - begin: <span class="c">
   end: </span>
-  selector: comment
+  selector: punctuation.definition.comment
+- begin: <span class="c1">
+  end: </span>
+  selector: comment.line.number-sign
 - begin: <span class="k">
   end: </span>
   selector: keyword, storage
