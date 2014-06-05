@@ -4,3 +4,6 @@
 [submodule "vendor/sources/ruby"]
 	path = vendor/sources/ruby
 	url = git://github.com/atom/language-ruby
+[submodule "vendor/sources/c"]
+	path = vendor/sources/c
+	url = git://github.com/atom/language-c
