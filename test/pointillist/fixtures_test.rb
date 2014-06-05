@@ -10,7 +10,8 @@ class Pointillist::FixturesTest < Test::Unit::TestCase
 
   def test_highlight_defaults_to_html
     code = Pointillist.highlight(RUBY_CODE, "Ruby")
-    assert_match '<span class="c1">#!/usr/bin/ruby</span>', code
+
+    assert_match '<span class="c1"><span class="c">#</span> -*- coding: utf-8 -*-</span>', code
     assert_equal '<div class', code[0..9]
   end
 

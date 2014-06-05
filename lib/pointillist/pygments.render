@@ -107,8 +107,8 @@ tags:
   end: </span>
   selector: markup.list
 listing:
-  begin: <pre>
-  end: </pre>
+  begin: <div class="highlight"><pre>
+  end: </pre></div>
 document:
   begin: ""
   end: ""
