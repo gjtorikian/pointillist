@@ -8,242 +8,302 @@ tags:
 - begin: <span class="c1">
   end: </span>
   selector: comment.line
+  original: Comment.Single
 
 - begin: <span class="cm">
   end: </span>
   selector: comment.block
+  original: Comment.Multiline
 
 - begin: <span class="cp">
   end: </span>
   selector: comment.block.preprocessor
+  original: Comment.Preproc
 
 - begin: <span class="cs">
   end: </span>
-  selector: comment.special
-
-- begin: <span class="gd">
-  end: </span>
-  selector: Generic.Deleted
-
-- begin: <span class="ge">
-  end: </span>
-  selector: Generic.Emph
-
-- begin: <span class="gr">
-  end: </span>
-  selector: Generic.Error
-
-- begin: <span class="gh">
-  end: </span>
-  selector: Generic.Heading
-
-- begin: <span class="gi">
-  end: </span>
-  selector: Generic.Inserted
-
-- begin: <span class="go">
-  end: </span>
-  selector: Generic.Output
-
-- begin: <span class="gp">
-  end: </span>
-  selector: Generic.Prompt
-
-- begin: <span class="gs">
-  end: </span>
-  selector: Generic.Strong
-
-- begin: <span class="gu">
-  end: </span>
-  selector: Generic.Subheading
-
-- begin: <span class="gt">
-  end: </span>
-  selector: Generic.Traceback
+  selector: comment.block.documenation, comment.line.documentation
+  original: Comment.Special
 
 - begin: <span class="err">
   end: </span>
   selector: invalid, illegal
+  original: Token.Error
+
+- begin: <span class="gd">
+  end: </span>
+  selector: markup.deleted
+  original: Generic.Deleted
+
+- begin: <span class="ge">
+  end: </span>
+  selector: markup.italic
+  original: Generic.Emph
+
+- begin: <span class="gr">
+  end: </span>
+  selector: markup.error
+  original: Generic.Error
+
+- begin: <span class="gh">
+  end: </span>
+  selector: markup.heading
+  original: Generic.Heading
+
+- begin: <span class="gi">
+  end: </span>
+  selector: markup.inserted
+  original: Generic.Inserted
+
+- begin: <span class="go">
+  end: </span>
+  selector: markup.raw
+  original: Generic.Output
+
+- begin: <span class="gp">
+  end: </span>
+  selector: markup.raw
+  original: Generic.Prompt
+
+- begin: <span class="gs">
+  end: </span>
+  selector: markup.bold
+  original: Generic.Strong
+
+- begin: <span class="gu">
+  end: </span>
+  selector: markup.heading
+  original: Generic.Subheading
+
+- begin: <span class="gt">
+  end: </span>
+  selector: markup.raw
+  original: Generic.Traceback
 
 - begin: <span class="kc">
   end: </span>
-  selector: Keyword.Constant
+  selector: support.constant
+  original: Keyword.Constant
 
 - begin: <span class="k">
   end: </span>
-  selector: keyword.control
+  selector: support
+  original: Keyword
 
 - begin: <span class="kd">
   end: </span>
-  selector: Keyword.Declaration
+  selector: storage.modifier
+  original: Keyword.Declaration
 
 - begin: <span class="kn">
   end: </span>
-  selector: Keyword.Namespace
+  selector: keyword.other
+  original: Keyword.Namespace
 
 - begin: <span class="o">
   end: </span>
   selector: keyword.operator
+  original: Operator
 
 - begin: <span class="kp">
   end: </span>
-  selector: Keyword.Pseudo
+  selector: constant.language
+  original: Keyword.Pseudo
 
 - begin: <span class="kr">
   end: </span>
-  selector: Keyword.Reserved
+  selector: variable.language
+  original: Keyword.Reserved
 
 - begin: <span class="kt">
   end: </span>
-  selector: Keyword.Type
+  selector: storage.type
+  original: Keyword.Type
 
 - begin: <span class="m">
   end: </span>
-  selector: Literal.Number
+  selector: constant.numeric
+  original: Literal.Number
 
 - begin: <span class="s">
   end: </span>
-  selector: Literal.String
+  selector: string
+  original: Literal.String
 
 - begin: <span class="mf">
   end: </span>
-  selector: Literal.Number.Float
+  selector: constant.numeric.float
+  original: Literal.Number.Float
 
 - begin: <span class="mh">
   end: </span>
-  selector: Literal.Number.Hex
+  selector: constant.numeric.hex
+  original: Literal.Number.Hex
 
 - begin: <span class="mi">
   end: </span>
-  selector: Literal.Number.Integer
+  selector: constant.numeric.ing
+  original: Literal.Number.Integer
 
 - begin: <span class="il">
   end: </span>
-  selector: Literal.Number.Integer.Long
+  selector: constant.numeric.long
+  original: Literal.Number.Integer.Long
 
 - begin: <span class="mo">
   end: </span>
-  selector: Literal.Number.Oct
+  selector: constant.numeric.oct
+  original: Literal.Number.Oct
 
 - begin: <span class="sb">
   end: </span>
-  selector: Literal.String.Backtick
+  selector: string.quoted.single
+  original: Literal.String.Backtick
 
 - begin: <span class="sc">
   end: </span>
-  selector: Literal.String.Char
+  selector: string.quoted.other
+  original: Literal.String.Char
 
 - begin: <span class="sd">
   end: </span>
-  selector: Literal.String.Doc
+  selector: string.quoted.other
+  original: Literal.String.Doc
 
 - begin: <span class="s2">
   end: </span>
-  selector: Literal.String.Double
+  selector: string.quoted.double
+  original: Literal.String.Double
 
 - begin: <span class="se">
   end: </span>
-  selector: Literal.String.Escape
+  selector: constant.character.escape
+  original: Literal.String.Escape
 
 - begin: <span class="sh">
   end: </span>
-  selector: Literal.String.Heredoc
+  selector: string.quoted.triple
+  original: Literal.String.Heredoc
 
 - begin: <span class="si">
   end: </span>
-  selector: Literal.String.Interpol
+  selector: string.interpolated
+  original: Literal.String.Interpol
 
 - begin: <span class="sx">
   end: </span>
-  selector: Literal.String.Other
+  selector: string.quoted.other
+  original: Literal.String.Other
 
 - begin: <span class="sr">
   end: </span>
-  selector: Literal.String.Regex
+  selector: string.regexp
+  original: Literal.String.Regex
 
 - begin: <span class="s1">
   end: </span>
-  selector: Literal.String.Single
+  selector: string.quoted.single
+  original: Literal.String.Single
 
 - begin: <span class="ss">
   end: </span>
-  selector: Literal.String.Symbol
+  selector: constant.other.symbol
+  original: Literal.String.Symbol
 
 - begin: <span class="na">
   end: </span>
-  selector: Name.Attribute
+  selector: entity.other.attribute-name
+  original: Name.Attribute
 
 - begin: <span class="nb">
   end: </span>
-  selector: Name.Builtin
+  selector: support.class
+  original: Name.Builtin
 
 - begin: <span class="bp">
   end: </span>
-  selector: Name.Builtin.Pseudo
+  selector: variable.language
+  original: Name.Builtin.Pseudo
 
 - begin: <span class="nc">
   end: </span>
-  selector: Name.Class
+  selector: entity.name.type
+  original: Name.Class
 
 - begin: <span class="no">
   end: </span>
-  selector: Name.Constant
+  selector: support.constant
+  original: Name.Constant
 
 - begin: <span class="nd">
   end: </span>
-  selector: Name.Decorator
+  selector: support.other
+  original: Name.Decorator
 
 - begin: <span class="ni">
   end: </span>
-  selector: Name.Entity
+  selector: constant.character
+  original: Name.Entity
 
 - begin: <span class="ne">
   end: </span>
-  selector: Name.Exception
+  selector: support.type.exception
+  original: Name.Exception
 
 - begin: <span class="nf">
   end: </span>
-  selector: Name.Function
+  selector: entity.name.function
+  original: Name.Function
 
 - begin: <span class="nl">
   end: </span>
-  selector: Name.Label
+  selector: keyword.control
+  original: Name.Label
 
 - begin: <span class="nn">
   end: </span>
-  selector: Name.Namespace
+  selector: entity.name.type.module
+  original: Name.Namespace
 
 - begin: <span class="nt">
   end: </span>
-  selector: Name.Tag
+  selector: entity.name.tag
+  original: Name.Tag
 
 - begin: <span class="nv">
   end: </span>
-  selector: Name.Variable
+  selector: variable.other
+  original: Name.Variable
 
 - begin: <span class="vc">
   end: </span>
-  selector: Name.Variable.Class
+  selector: variable.other.class
+  original: Name.Variable.Class
 
 - begin: <span class="vg">
   end: </span>
-  selector: Name.Variable.Global
+  selector: variable.other
+  original: Name.Variable.Global
 
 - begin: <span class="vi">
   end: </span>
-  selector: Name.Variable.Instance
+  selector: variable.other
+  original: Name.Variable.Instance
 
 - begin: <span class="ow">
   end: </span>
-  selector: Operator.Word
+  selector: keyword.operator
+  original: Operator.Word
 
 - begin: <span class="c">
   end: </span>
   selector: punctuation.definition.comment
+  original: Comment
 
 - begin: <span class="w">
   end: </span>
-  selector: Text.Whitespace
+  selector: punctuation.whitespace
+  original: Text.Whitespace
 
 listing:
   begin: <div class="highlight"><pre>
