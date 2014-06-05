@@ -4,108 +4,247 @@ line:
   begin: ""
   end: ""
 tags:
+
+- begin: <span class="c1">
+  end: </span>
+  selector: comment.line
+
+- begin: <span class="cm">
+  end: </span>
+  selector: comment.block
+
+- begin: <span class="cp">
+  end: </span>
+  selector: comment.block.preprocessor
+
+- begin: <span class="cs">
+  end: </span>
+  selector: comment.special
+
+- begin: <span class="gd">
+  end: </span>
+  selector: Generic.Deleted
+
+- begin: <span class="ge">
+  end: </span>
+  selector: Generic.Emph
+
+- begin: <span class="gr">
+  end: </span>
+  selector: Generic.Error
+
+- begin: <span class="gh">
+  end: </span>
+  selector: Generic.Heading
+
+- begin: <span class="gi">
+  end: </span>
+  selector: Generic.Inserted
+
+- begin: <span class="go">
+  end: </span>
+  selector: Generic.Output
+
+- begin: <span class="gp">
+  end: </span>
+  selector: Generic.Prompt
+
+- begin: <span class="gs">
+  end: </span>
+  selector: Generic.Strong
+
+- begin: <span class="gu">
+  end: </span>
+  selector: Generic.Subheading
+
+- begin: <span class="gt">
+  end: </span>
+  selector: Generic.Traceback
+
+- begin: <span class="err">
+  end: </span>
+  selector: invalid, illegal
+
+- begin: <span class="kc">
+  end: </span>
+  selector: Keyword.Constant
+
+- begin: <span class="k">
+  end: </span>
+  selector: keyword.control
+
+- begin: <span class="kd">
+  end: </span>
+  selector: Keyword.Declaration
+
+- begin: <span class="kn">
+  end: </span>
+  selector: Keyword.Namespace
+
+- begin: <span class="o">
+  end: </span>
+  selector: keyword.operator
+
+- begin: <span class="kp">
+  end: </span>
+  selector: Keyword.Pseudo
+
+- begin: <span class="kr">
+  end: </span>
+  selector: Keyword.Reserved
+
+- begin: <span class="kt">
+  end: </span>
+  selector: Keyword.Type
+
+- begin: <span class="m">
+  end: </span>
+  selector: Literal.Number
+
+- begin: <span class="s">
+  end: </span>
+  selector: Literal.String
+
+- begin: <span class="mf">
+  end: </span>
+  selector: Literal.Number.Float
+
+- begin: <span class="mh">
+  end: </span>
+  selector: Literal.Number.Hex
+
+- begin: <span class="mi">
+  end: </span>
+  selector: Literal.Number.Integer
+
+- begin: <span class="il">
+  end: </span>
+  selector: Literal.Number.Integer.Long
+
+- begin: <span class="mo">
+  end: </span>
+  selector: Literal.Number.Oct
+
+- begin: <span class="sb">
+  end: </span>
+  selector: Literal.String.Backtick
+
+- begin: <span class="sc">
+  end: </span>
+  selector: Literal.String.Char
+
+- begin: <span class="sd">
+  end: </span>
+  selector: Literal.String.Doc
+
+- begin: <span class="s2">
+  end: </span>
+  selector: Literal.String.Double
+
+- begin: <span class="se">
+  end: </span>
+  selector: Literal.String.Escape
+
+- begin: <span class="sh">
+  end: </span>
+  selector: Literal.String.Heredoc
+
+- begin: <span class="si">
+  end: </span>
+  selector: Literal.String.Interpol
+
+- begin: <span class="sx">
+  end: </span>
+  selector: Literal.String.Other
+
+- begin: <span class="sr">
+  end: </span>
+  selector: Literal.String.Regex
+
+- begin: <span class="s1">
+  end: </span>
+  selector: Literal.String.Single
+
+- begin: <span class="ss">
+  end: </span>
+  selector: Literal.String.Symbol
+
+- begin: <span class="na">
+  end: </span>
+  selector: Name.Attribute
+
+- begin: <span class="nb">
+  end: </span>
+  selector: Name.Builtin
+
+- begin: <span class="bp">
+  end: </span>
+  selector: Name.Builtin.Pseudo
+
+- begin: <span class="nc">
+  end: </span>
+  selector: Name.Class
+
+- begin: <span class="no">
+  end: </span>
+  selector: Name.Constant
+
+- begin: <span class="nd">
+  end: </span>
+  selector: Name.Decorator
+
+- begin: <span class="ni">
+  end: </span>
+  selector: Name.Entity
+
+- begin: <span class="ne">
+  end: </span>
+  selector: Name.Exception
+
+- begin: <span class="nf">
+  end: </span>
+  selector: Name.Function
+
+- begin: <span class="nl">
+  end: </span>
+  selector: Name.Label
+
+- begin: <span class="nn">
+  end: </span>
+  selector: Name.Namespace
+
+- begin: <span class="nt">
+  end: </span>
+  selector: Name.Tag
+
+- begin: <span class="nv">
+  end: </span>
+  selector: Name.Variable
+
+- begin: <span class="vc">
+  end: </span>
+  selector: Name.Variable.Class
+
+- begin: <span class="vg">
+  end: </span>
+  selector: Name.Variable.Global
+
+- begin: <span class="vi">
+  end: </span>
+  selector: Name.Variable.Instance
+
+- begin: <span class="ow">
+  end: </span>
+  selector: Operator.Word
+
 - begin: <span class="c">
   end: </span>
   selector: punctuation.definition.comment
-- begin: <span class="c1">
-  end: </span>
-  selector: comment.line.number-sign
-- begin: <span class="k">
-  end: </span>
-  selector: keyword, storage
-- begin: <span class="m">
-  end: </span>
-  selector: constant.numeric
-- begin: <span class="no">
-  end: </span>
-  selector: constant
-- begin: <span class="kc">
-  end: </span>
-  selector: constant.language
-- begin: <span class="nv">
-  end: </span>
-  selector: variable.language, variable.other
-- begin: <span class="s">
-  end: </span>
-  selector: string
-- begin: <span class="si">
-  end: </span>
-  selector: constant.character.escape, string source
-- begin: <span class="cp">
-  end: </span>
-  selector: meta.preprocessor
-- begin: <span class="kn">
-  end: </span>
-  selector: keyword.control.import
-- begin: <span class="nf">
-  end: </span>
-  selector: entity.name.function, support.function.any-method
-- begin: <span class="kt">
-  end: </span>
-  selector: entity.name.type
-- begin: <span class="cls">
-  end: </span>
-  selector: entity.other.inherited-class
-- begin: <span class="n">
-  end: </span>
-  selector: variable.parameter
-- begin: <span class="kd">
-  end: </span>
-  selector: storage.type.method
-- begin: <span class="Section">
-  end: </span>
-  selector: meta.section entity.name.section, declaration.section entity.name.section
-- begin: <span class="n">
-  end: </span>
-  selector: support.function
-- begin: <span class="nb">
-  end: </span>
-  selector: support.class, support.type
-- begin: <span class="no">
-  end: </span>
-  selector: support.constant
-- begin: <span class="no">
-  end: </span>
-  selector: support.variable
-- begin: <span class="err">
-  end: </span>
-  selector: invalid
-- begin: <span class="err">
-  end: </span>
-  selector: invalid.deprecated.trailing-whitespace
+
 - begin: <span class="w">
   end: </span>
-  selector: text source, string.unquoted
-- begin: <span class="w">
-  end: </span>
-  selector: text source string.unquoted, text source text source
-- begin: <span class="nt">
-  end: </span>
-  selector: meta.tag.preprocessor.xml
-- begin: <span class="cp">
-  end: </span>
-  selector: meta.tag.sgml.doctype, meta.tag.sgml.doctype entity, meta.tag.sgml.doctype string, meta.tag.preprocessor.xml, meta.tag.preprocessor.xml entity, meta.tag.preprocessor.xml string
-- begin: <span class="cp">
-  end: </span>
-  selector: string.quoted.docinfo.doctype.DTD
-- begin: <span class="nt">
-  end: </span>
-  selector: meta.tag, declaration.tag
-- begin: <span class="nt">
-  end: </span>
-  selector: entity.name.tag
-- begin: <span class="na">
-  end: </span>
-  selector: entity.other.attribute-name
-- begin: <span class="na">
-  end: </span>
-  selector: markup.heading
-- begin: <span class="na">
-  end: </span>
-  selector: markup.quote
-- begin: <span class="na">
-  end: </span>
-  selector: markup.list
+  selector: Text.Whitespace
+
 listing:
   begin: <div class="highlight"><pre>
   end: </pre></div>
