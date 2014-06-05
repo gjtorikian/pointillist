@@ -2,6 +2,7 @@ require 'cgi'
 require 'textpow'
 
 module Pointillist
+  # almost entirely taken from Ultraviolet: http://git.io/EouTpA
   class Processor
     attr_reader :string
 
