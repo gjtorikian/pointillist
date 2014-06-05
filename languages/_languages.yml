@@ -1,3 +1,4 @@
+# the idea is to map Linguist names to JSON-highlighting counterparts
 C:
   path: c.json
 CoffeeScript:
