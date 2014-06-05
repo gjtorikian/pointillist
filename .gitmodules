@@ -7,3 +7,15 @@
 [submodule "vendor/sources/c"]
 	path = vendor/sources/c
 	url = git://github.com/atom/language-c
+[submodule "vendor/sources/javascript"]
+	path = vendor/sources/javascript
+	url = git://github.com/atom/language-javascript
+[submodule "vendor/sources/java"]
+	path = vendor/sources/java
+	url = git://github.com/atom/language-java
+[submodule "vendor/sources/python"]
+	path = vendor/sources/python
+	url = git://github.com/atom/language-python
+[submodule "vendor/sources/html"]
+	path = vendor/sources/html
+	url = git://github.com/atom/language-html
