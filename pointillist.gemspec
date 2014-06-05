@@ -4,8 +4,8 @@ Gem::Specification.new do |s|
   s.name = 'pointillist'
   s.version = Pointillist::VERSION
 
-  s.summary = 'Uses Atom stylesheets for syntax highlighting.'
-  s.description = 'Pointillist converts Atom stylesheets for use by Ruby, as a replacement to Pygments.'
+  s.summary = 'Convert Atom\'s stylesheets into Pygments-compatible HTML.'
+  s.description = 'Pointillist converts the same syntax highlighting rules used by Atom into an HTML format that is comprehensible by stylesheets designed for Pygments.'
 
   s.homepage = 'https://github.com/gjtorikian/pointillist'
   s.has_rdoc = false
