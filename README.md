@@ -22,7 +22,7 @@ For example, to fetch Atom's CoffeeScript highlighting, you'd invoke:
 script/add-language atom/language-coffee-script coffeescript
 ```
 
-That second `coffeescript` string comes from the fact that [the filename under *grammars* is called *coffeescript.cson*][coffeescript grammar]
+That second `coffeescript` string comes from the fact that [the filename under *grammars* is called *coffeescript.cson*][coffeescript grammar].
 
 ## How does it work?
 
