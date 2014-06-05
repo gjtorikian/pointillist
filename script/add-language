@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-if (process.argv.length != 5) {
-  console.log("usage: script/cson2json <filePath>");
+if (process.argv.length != 4) {
+  console.log("usage: script/cson2json <github_repo> <name_of_cson>");
   process.exit(1);
 }
 
@@ -10,12 +10,12 @@ var path = require('path');
 var exec = require('child_process').exec;
 
 var github_repo = process.argv[2];
-var lang_name = process.argv[4];
-var path_to_cson = path.join("vendor", "sources", lang_name, "grammars", process.argv[3]);
+var lang_name = process.argv[3];
+var path_to_cson = path.join("vendor", "sources", lang_name, "grammars", lang_name) + ".cson";
 var json_filename = path.join("languages", lang_name + ".json");
 
 console.log("Fetching git://github.com/" + github_repo);
-exec("git submodule add git://github.com/" + github_repo + " vendor/sources/" + lang_name, function(error, stdout, stderr) {
+exec("git submodule add -f git://github.com/" + github_repo + " vendor/sources/" + lang_name, function(error, stdout, stderr) {
   if (error !== null) {
     console.error(stderr);
     console.error('exec error: ' + error);
@@ -34,6 +34,7 @@ exec("git submodule add git://github.com/" + github_repo + " vendor/sources/" + 
         console.log("Found some characters to remove:");
         console.log(match);
       }
+      fs.writeFileSync(json_filename, JSON.stringify(JSON.parse(data), null, 2));
     });
   });
 });

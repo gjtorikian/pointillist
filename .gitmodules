@@ -1,6 +1,6 @@
-[submodule "vendor/sources/coffee-script"]
-	path = vendor/sources/coffee-script
-	url = git://github.com/atom/language-coffee-script.git
 [submodule "vendor/sources/ruby"]
 	path = vendor/sources/ruby
 	url = git://github.com/atom/language-ruby
+[submodule "vendor/sources/coffeescript"]
+	path = vendor/sources/coffeescript
+	url = git://github.com/atom/language-coffee-script
