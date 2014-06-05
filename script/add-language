@@ -30,9 +30,10 @@ exec("git submodule add -f git://github.com/" + github_repo + " vendor/sources/"
     fs.readFile(json_filename, 'utf8', function (err, data) {
       if (err) { return console.error(err); }
       var match = "";
-      if (match = data.match(/\\x\{/g)) {
+      if (match = /\\x\{(.+?)\}/g.exec(data)) {
         console.log("Found some characters to remove:");
         console.log(match);
+        data = data.replace(/\\x\{(.+?)\}/g, "\\x$1");
       }
       fs.writeFileSync(json_filename, JSON.stringify(JSON.parse(data), null, 2));
     });
