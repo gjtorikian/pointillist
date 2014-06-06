@@ -3,5 +3,13 @@ C:
   path: c.json
 CoffeeScript:
   path: coffeescript.json
+HTML:
+  path: html.json
+Java:
+  path: java.json
+JavaScript:
+  path: javascript.json
+Python:
+  path: python.json
 Ruby:
   path: ruby.json
