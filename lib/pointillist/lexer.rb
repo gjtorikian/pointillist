@@ -1,7 +1,7 @@
 require 'textpow'
 
 module Pointillist
-  class Lexer < Struct.new(:name, :path)
+  class Lexer < Struct.new(:name, :path, :grammar)
     @lexers          = []
     @index           = {}
     @name_index      = {}
@@ -13,8 +13,9 @@ module Pointillist
     #
     # Returns a Lexer object
     def self.create(name, hash)
-      grammar = YAML.load_file(File.join(Pointillist.syntax_path, hash["path"]))
-      lexer = new(name, grammar)
+      @path = File.join(Pointillist.syntax_path, hash["path"])
+      grammar = YAML.load_file(@path)
+      lexer = new(name, @path, grammar)
 
       @lexers << lexer
 
@@ -55,7 +56,7 @@ module Pointillist
     # Returns html String
     def highlight(text, options = {})
       Pointillist::Processor.load do |processor|
-        syntax_node = Textpow::SyntaxNode.load(File.join(Pointillist.syntax_path, "ruby.json"))
+        syntax_node = Textpow::SyntaxNode.load(self.path)
         syntax_node.parse(text, processor)
       end.string
     end
