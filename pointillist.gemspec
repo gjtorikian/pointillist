@@ -22,4 +22,6 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'textpow', '~> 1.3.1'
   s.add_development_dependency 'rake'
+  s.add_development_dependency 'pygments.rb'
+  s.add_development_dependency 'ruby-prof'
 end
