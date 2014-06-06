@@ -56,7 +56,7 @@ module Pointillist
     # Returns html String
     def highlight(text, options = {})
       Pointillist::Processor.load do |processor|
-        syntax_node = Textpow::SyntaxNode.load(self.path)
+        syntax_node = Textpow::SyntaxNode.new(grammar)
         syntax_node.parse(text, processor)
       end.string
     end
