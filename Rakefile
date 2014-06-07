@@ -15,7 +15,7 @@ def language_to_ul(language_to_data)
   contents = "<ul>"
   contents << language_to_data.keys.map do |language|
     %|<li><a href="#{language}.html">#{language}</a></li>|
-  end
+  end.join("\n")
   contents << "</ul>"
 end
 
@@ -36,17 +36,19 @@ task :publish do
   index_template = File.read("docs/_templates/index.html")
   lang_template = File.read("docs/_templates/language.html")
 
-  index = Tempfile.new('index.html')
+  index = File.new(File.join("#{Dir.tmpdir}", "index.html"), "w+")
   index.write(index_template.sub("{{ language_list }}", language_to_ul(language_to_data)))
   files_to_copy << index.path
+  index.close
 
   language_to_data.each do |language, file_data|
-    lang = Tempfile.new("#{language}.html")
-    contents = lang_template.sub("{{ language_list }}", language_to_ul(language_to_data)))
+    lang = File.new(File.join("#{Dir.tmpdir}", "#{language}.html"), "w+")
+    contents = lang_template.sub("{{ language_list }}", language_to_ul(language_to_data))
     contents = contents.sub("{{ POINTILLIST_OUTPUT }}", Pygments.highlight(file_data, :lexer => language.downcase))
     contents = contents.sub("{{ PYGMENTS_OUTPUT }}", Pointillist.highlight(file_data, language))
     lang.write(contents)
     files_to_copy << lang.path
+    lang.close
   end
 
   system "git checkout gh-pages"
