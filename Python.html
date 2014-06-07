@@ -3,20 +3,45 @@
 <head>
 <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
 <link rel="stylesheet" type="text/css" href="styles/github.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
 </head>
 
 <body>
+  <nav class="navbar navbar-default" role="navigation">
+    <div class="container-fluid">
+      <!-- Brand and toggle get grouped for better mobile display -->
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="#">Pointillist</a>
+      </div>
 
-<div class="container">
-  <div class="row">
-    <div class="col-sm-2">
-      <ul><li><a href="C.html">C</a></li>
+      <!-- Collect the nav links, forms, and other content for toggling -->
+      <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+        <ul class="nav navbar-nav">
+          <li class="dropdown">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Languages <b class="caret"></b></a>
+            <ul class="dropdown-menu">
+              <ul><li><a href="C.html">C</a></li>
 <li><a href="CoffeeScript.html">CoffeeScript</a></li>
 <li><a href="Python.html">Python</a></li>
 <li><a href="Ruby.html">Ruby</a></li></ul>
-    </div>
-    <div class="col-sm-4">
-      <div class="highlight"><pre><span class="c"># -*- coding: utf-8 -</span>
+            </ul>
+          </li>
+        </ul>
+      </div><!-- /.navbar-collapse -->
+    </div><!-- /.container-fluid -->
+  </nav>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-6">
+        <div class="highlight"><pre><span class="c"># -*- coding: utf-8 -</span>
 <span class="c">#</span>
 <span class="c"># This file is part of gunicorn released under the MIT license.</span>
 <span class="c"># See the NOTICE for more information.</span>
@@ -531,9 +556,9 @@
                     <span class="k">return</span>
             <span class="k">raise</span>
 </pre></div>
-    </div>
-    <div class="col-sm-4">
-      <div class="highlight"><pre><span class="c1"><span class="c">#</span> -*- coding: utf-8 -</span>
+      </div>
+      <div class="col-sm-6">
+        <div class="highlight"><pre><span class="c1"><span class="c">#</span> -*- coding: utf-8 -</span>
 <span class="c1"><span class="c">#</span></span>
 <span class="c1"><span class="c">#</span> This file is part of gunicorn released under the MIT license.</span>
 <span class="c1"><span class="c">#</span> See the NOTICE for more information.</span>
@@ -1048,12 +1073,9 @@
                     <span class="nl">return</span>
             <span class="nl">raise</span>
 </pre></div>
-    </div>
-    <div class="col-sm-2">
-
+      </div>
     </div>
   </div>
-</div>
 
 </body>
 
