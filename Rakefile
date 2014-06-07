@@ -12,7 +12,7 @@ Rake::TestTask.new do |t|
 end
 
 def language_to_ul(language_to_data)
-  contents = "<ul>"
+  contents = %|<ul class="dropdown-menu" role="menu">|
   contents << language_to_data.keys.map do |language|
     %|<li><a href="#{language}.html">#{language}</a></li>|
   end.join("\n")
