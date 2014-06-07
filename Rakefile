@@ -45,8 +45,19 @@ task :publish do
     lang = File.new(File.join("#{Dir.tmpdir}", "#{language}.html"), "w+")
     contents = lang_template.sub("{{ language_list }}", language_to_ul(language_to_data))
     contents = contents.gsub("{{ language_name }}", language)
-    contents = contents.sub("{{ POINTILLIST_OUTPUT }}", Pygments.highlight(file_data, :lexer => language.downcase))
-    contents = contents.sub("{{ PYGMENTS_OUTPUT }}", Pointillist.highlight(file_data, language))
+
+    pointillist_render = pygments_render = nil
+    pointillist_time = Benchmark.realtime do
+      pointillist_render = Pointillist.highlight(file_data, language)
+    end
+    contents = contents.sub("{{ POINTILLIST_OUTPUT }}", pointillist_render)
+    contents = contents.sub("{{ pointillist_benchmark }}", pointillist_time)
+    pygments_time = Benchmark.realtime do
+      pygments_render = Pygments.highlight(file_data, :lexer => language.downcase)
+    end
+    contents = contents.sub("{{ PYGMENTS_OUTPUT }}", pygments_render)
+    contents = contents.sub("{{ pygments_benchmark }}", pygments_time)
+
     lang.write(contents)
     files_to_copy << lang.path
     lang.close
