@@ -52,12 +52,12 @@ task :publish do
       pointillist_render = Pointillist.highlight(file_data, language)
     end
     contents = contents.sub("{{ POINTILLIST_OUTPUT }}", pointillist_render)
-    contents = contents.sub("{{ pointillist_benchmark }}", pointillist_time)
+    contents = contents.sub("{{ pointillist_benchmark }}", pointillist_time.to_s)
     pygments_time = Benchmark.realtime do
       pygments_render = Pygments.highlight(file_data, :lexer => language.downcase)
     end
     contents = contents.sub("{{ PYGMENTS_OUTPUT }}", pygments_render)
-    contents = contents.sub("{{ pygments_benchmark }}", pygments_time)
+    contents = contents.sub("{{ pygments_benchmark }}", pygments_time.to_s)
 
     lang.write(contents)
     files_to_copy << lang.path
