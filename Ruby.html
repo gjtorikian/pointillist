@@ -42,148 +42,7 @@
   <div class="container">
     <div class="row">
       <div class="col-sm-6">
-        <h5>Pointillist</h5>
-        <div class="highlight"><pre><span class="c1"># -*- coding: utf-8 -*-</span>
-<span class="c1"># Modify the PATH on windows so that the external DLLs will get loaded.</span>
-
-<span class="nb">require</span> <span class="s1">&#39;rbconfig&#39;</span>
-
-<span class="k">if</span> <span class="n">defined?</span><span class="p">(</span><span class="no">RUBY_ENGINE</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="no">RUBY_ENGINE</span> <span class="o">==</span> <span class="s2">&quot;jruby&quot;</span>
-  <span class="c1"># The line below caused a problem on non-GAE rack environment.</span>
-  <span class="c1"># unless defined?(JRuby::Rack::VERSION) || defined?(AppEngine::ApiProxy)</span>
-  <span class="c1">#</span>
-  <span class="c1"># However, simply cutting defined?(JRuby::Rack::VERSION) off resulted in</span>
-  <span class="c1"># an unable-to-load-nokogiri problem. Thus, now, Nokogiri checks the presense</span>
-  <span class="c1"># of appengine-rack.jar in $LOAD_PATH. If Nokogiri is on GAE, Nokogiri</span>
-  <span class="c1"># should skip loading xml jars. This is because those are in WEB-INF/lib and</span>
-  <span class="c1"># already set in the classpath.</span>
-  <span class="k">unless</span> <span class="vg">$LOAD_PATH</span><span class="o">.</span><span class="n">to_s</span><span class="o">.</span><span class="n">include?</span><span class="p">(</span><span class="s2">&quot;appengine-rack&quot;</span><span class="p">)</span>
-    <span class="nb">require</span> <span class="s1">&#39;stringio&#39;</span>
-    <span class="nb">require</span> <span class="s1">&#39;isorelax.jar&#39;</span>
-    <span class="nb">require</span> <span class="s1">&#39;jing.jar&#39;</span>
-    <span class="nb">require</span> <span class="s1">&#39;nekohtml.jar&#39;</span>
-    <span class="nb">require</span> <span class="s1">&#39;nekodtd.jar&#39;</span>
-    <span class="nb">require</span> <span class="s1">&#39;xercesImpl.jar&#39;</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-
-<span class="k">begin</span>
-  <span class="no">RUBY_VERSION</span> <span class="o">=~</span> <span class="sr">/(\d+.\d+)/</span>
-  <span class="nb">require</span> <span class="s2">&quot;nokogiri/</span><span class="si">#{</span><span class="vg">$1</span><span class="si">}</span><span class="s2">/nokogiri&quot;</span>
-<span class="k">rescue</span> <span class="no">LoadError</span>
-  <span class="nb">require</span> <span class="s1">&#39;nokogiri/nokogiri&#39;</span>
-<span class="k">end</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/version&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/syntax_error&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/xml&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/xslt&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/html&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/decorators/slop&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/css&#39;</span>
-<span class="nb">require</span> <span class="s1">&#39;nokogiri/html/builder&#39;</span>
-
-<span class="c1"># Nokogiri parses and searches XML/HTML very quickly, and also has</span>
-<span class="c1"># correctly implemented CSS3 selector support as well as XPath 1.0</span>
-<span class="c1"># support.</span>
-<span class="c1">#</span>
-<span class="c1"># Parsing a document returns either a Nokogiri::XML::Document, or a</span>
-<span class="c1"># Nokogiri::HTML::Document depending on the kind of document you parse.</span>
-<span class="c1">#</span>
-<span class="c1"># Here is an example:</span>
-<span class="c1">#</span>
-<span class="c1">#   require &#39;nokogiri&#39;</span>
-<span class="c1">#   require &#39;open-uri&#39;</span>
-<span class="c1">#</span>
-<span class="c1">#   # Get a Nokogiri::HTML:Document for the page we’re interested in...</span>
-<span class="c1">#</span>
-<span class="c1">#   doc = Nokogiri::HTML(open(&#39;http://www.google.com/search?q=tenderlove&#39;))</span>
-<span class="c1">#</span>
-<span class="c1">#   # Do funky things with it using Nokogiri::XML::Node methods...</span>
-<span class="c1">#</span>
-<span class="c1">#   ####</span>
-<span class="c1">#   # Search for nodes by css</span>
-<span class="c1">#   doc.css(&#39;h3.r a.l&#39;).each do |link|</span>
-<span class="c1">#     puts link.content</span>
-<span class="c1">#   end</span>
-<span class="c1">#</span>
-<span class="c1"># See Nokogiri::XML::Node#css for more information about CSS searching.</span>
-<span class="c1"># See Nokogiri::XML::Node#xpath for more information about XPath searching.</span>
-<span class="k">module</span> <span class="nn">Nokogiri</span>
-  <span class="k">class</span> <span class="o">&lt;&lt;</span> <span class="nb">self</span>
-    <span class="c1">###</span>
-    <span class="c1"># Parse an HTML or XML document.  +string+ contains the document.</span>
-    <span class="k">def</span> <span class="nf">parse</span> <span class="n">string</span><span class="p">,</span> <span class="n">url</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">encoding</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="kp">nil</span>
-      <span class="k">if</span> <span class="n">string</span><span class="o">.</span><span class="n">respond_to?</span><span class="p">(</span><span class="ss">:read</span><span class="p">)</span> <span class="o">||</span>
-          <span class="sr">/^\s*&lt;(?:!DOCTYPE\s+)?html[\s&gt;]/i</span> <span class="o">===</span> <span class="n">string</span><span class="o">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">512</span><span class="o">]</span>
-        <span class="c1"># Expect an HTML indicator to appear within the first 512</span>
-        <span class="c1"># characters of a document. (&lt;?xml ?&gt; + &lt;?xml-stylesheet ?&gt;</span>
-        <span class="c1"># shouldn&#39;t be that long)</span>
-        <span class="no">Nokogiri</span><span class="o">.</span><span class="n">HTML</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span>
-          <span class="n">options</span> <span class="o">||</span> <span class="no">XML</span><span class="o">::</span><span class="no">ParseOptions</span><span class="o">::</span><span class="no">DEFAULT_HTML</span><span class="p">)</span>
-      <span class="k">else</span>
-        <span class="no">Nokogiri</span><span class="o">.</span><span class="n">XML</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span>
-          <span class="n">options</span> <span class="o">||</span> <span class="no">XML</span><span class="o">::</span><span class="no">ParseOptions</span><span class="o">::</span><span class="no">DEFAULT_XML</span><span class="p">)</span>
-      <span class="k">end</span><span class="o">.</span><span class="n">tap</span> <span class="p">{</span> <span class="o">|</span><span class="n">doc</span><span class="o">|</span>
-        <span class="k">yield</span> <span class="n">doc</span> <span class="k">if</span> <span class="nb">block_given?</span>
-      <span class="p">}</span>
-    <span class="k">end</span>
-
-    <span class="c1">###</span>
-    <span class="c1"># Create a new Nokogiri::XML::DocumentFragment</span>
-    <span class="k">def</span> <span class="nf">make</span> <span class="n">input</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">opts</span> <span class="o">=</span> <span class="p">{},</span> <span class="o">&amp;</span><span class="n">blk</span>
-      <span class="k">if</span> <span class="n">input</span>
-        <span class="no">Nokogiri</span><span class="o">::</span><span class="no">HTML</span><span class="o">.</span><span class="n">fragment</span><span class="p">(</span><span class="n">input</span><span class="p">)</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">first</span>
-      <span class="k">else</span>
-        <span class="no">Nokogiri</span><span class="p">(</span><span class="o">&amp;</span><span class="n">blk</span><span class="p">)</span>
-      <span class="k">end</span>
-    <span class="k">end</span>
-
-    <span class="c1">###</span>
-    <span class="c1"># Parse a document and add the Slop decorator.  The Slop decorator</span>
-    <span class="c1"># implements method_missing such that methods may be used instead of CSS</span>
-    <span class="c1"># or XPath.  For example:</span>
-    <span class="c1">#</span>
-    <span class="c1">#   doc = Nokogiri::Slop(&lt;&lt;-eohtml)</span>
-    <span class="c1">#     &lt;html&gt;</span>
-    <span class="c1">#       &lt;body&gt;</span>
-    <span class="c1">#         &lt;p&gt;first&lt;/p&gt;</span>
-    <span class="c1">#         &lt;p&gt;second&lt;/p&gt;</span>
-    <span class="c1">#       &lt;/body&gt;</span>
-    <span class="c1">#     &lt;/html&gt;</span>
-    <span class="c1">#   eohtml</span>
-    <span class="c1">#   assert_equal(&#39;second&#39;, doc.html.body.p[1].text)</span>
-    <span class="c1">#</span>
-    <span class="k">def</span> <span class="nf">Slop</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
-      <span class="no">Nokogiri</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span><span class="o">.</span><span class="n">slop!</span>
-    <span class="k">end</span>
-  <span class="k">end</span>
-
-  <span class="c1"># Make sure to support some popular encoding aliases not known by</span>
-  <span class="c1"># all iconv implementations.</span>
-  <span class="p">{</span>
-    <span class="s1">&#39;Windows-31J&#39;</span> <span class="o">=&gt;</span> <span class="s1">&#39;CP932&#39;</span><span class="p">,</span>	<span class="c1"># Windows-31J is the IANA registered name of CP932.</span>
-  <span class="p">}</span><span class="o">.</span><span class="n">each</span> <span class="p">{</span> <span class="o">|</span><span class="n">alias_name</span><span class="p">,</span> <span class="nb">name</span><span class="o">|</span>
-    <span class="no">EncodingHandler</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="nb">name</span><span class="p">,</span> <span class="n">alias_name</span><span class="p">)</span> <span class="k">if</span> <span class="no">EncodingHandler</span><span class="o">[</span><span class="n">alias_name</span><span class="o">].</span><span class="n">nil?</span>
-  <span class="p">}</span>
-<span class="k">end</span>
-
-<span class="c1">###</span>
-<span class="c1"># Parser a document contained in +args+.  Nokogiri will try to guess what</span>
-<span class="c1"># type of document you are attempting to parse.  For more information, see</span>
-<span class="c1"># Nokogiri.parse</span>
-<span class="c1">#</span>
-<span class="c1"># To specify the type of document, use Nokogiri.XML or Nokogiri.HTML.</span>
-<span class="k">def</span> <span class="nf">Nokogiri</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
-  <span class="k">if</span> <span class="nb">block_given?</span>
-    <span class="no">Nokogiri</span><span class="o">::</span><span class="no">HTML</span><span class="o">::</span><span class="no">Builder</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">)</span><span class="o">.</span><span class="n">doc</span><span class="o">.</span><span class="n">root</span>
-  <span class="k">else</span>
-    <span class="no">Nokogiri</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
-  <span class="k">end</span>
-<span class="k">end</span>
-</pre></div>
-      </div>
-      <div class="col-sm-6">
-        <h5>Pygments</h5>
+        <h5>Pointillist (0.177094 seconds)</h5>
         <div class="highlight"><pre><span class="c1"><span class="c">#</span> -*- coding: utf-8 -*-</span>
 <span class="c1"><span class="c">#</span> Modify the PATH on windows so that the external DLLs will get loaded.</span>
 
@@ -321,6 +180,147 @@ def <span class="nv">Nokogiri</span>(<span class="o">*</span>args, <span class="
     <span class="nb">Nokogiri</span>.parse(<span class="o">*</span>args)
   <span class="nl">end</span>
 <span class="nl">end</span>
+</pre></div>
+      </div>
+      <div class="col-sm-6">
+        <h5>Pygments (0.044105 seconds)</h5>
+        <div class="highlight"><pre><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Modify the PATH on windows so that the external DLLs will get loaded.</span>
+
+<span class="nb">require</span> <span class="s1">&#39;rbconfig&#39;</span>
+
+<span class="k">if</span> <span class="n">defined?</span><span class="p">(</span><span class="no">RUBY_ENGINE</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="no">RUBY_ENGINE</span> <span class="o">==</span> <span class="s2">&quot;jruby&quot;</span>
+  <span class="c1"># The line below caused a problem on non-GAE rack environment.</span>
+  <span class="c1"># unless defined?(JRuby::Rack::VERSION) || defined?(AppEngine::ApiProxy)</span>
+  <span class="c1">#</span>
+  <span class="c1"># However, simply cutting defined?(JRuby::Rack::VERSION) off resulted in</span>
+  <span class="c1"># an unable-to-load-nokogiri problem. Thus, now, Nokogiri checks the presense</span>
+  <span class="c1"># of appengine-rack.jar in $LOAD_PATH. If Nokogiri is on GAE, Nokogiri</span>
+  <span class="c1"># should skip loading xml jars. This is because those are in WEB-INF/lib and</span>
+  <span class="c1"># already set in the classpath.</span>
+  <span class="k">unless</span> <span class="vg">$LOAD_PATH</span><span class="o">.</span><span class="n">to_s</span><span class="o">.</span><span class="n">include?</span><span class="p">(</span><span class="s2">&quot;appengine-rack&quot;</span><span class="p">)</span>
+    <span class="nb">require</span> <span class="s1">&#39;stringio&#39;</span>
+    <span class="nb">require</span> <span class="s1">&#39;isorelax.jar&#39;</span>
+    <span class="nb">require</span> <span class="s1">&#39;jing.jar&#39;</span>
+    <span class="nb">require</span> <span class="s1">&#39;nekohtml.jar&#39;</span>
+    <span class="nb">require</span> <span class="s1">&#39;nekodtd.jar&#39;</span>
+    <span class="nb">require</span> <span class="s1">&#39;xercesImpl.jar&#39;</span>
+  <span class="k">end</span>
+<span class="k">end</span>
+
+<span class="k">begin</span>
+  <span class="no">RUBY_VERSION</span> <span class="o">=~</span> <span class="sr">/(\d+.\d+)/</span>
+  <span class="nb">require</span> <span class="s2">&quot;nokogiri/</span><span class="si">#{</span><span class="vg">$1</span><span class="si">}</span><span class="s2">/nokogiri&quot;</span>
+<span class="k">rescue</span> <span class="no">LoadError</span>
+  <span class="nb">require</span> <span class="s1">&#39;nokogiri/nokogiri&#39;</span>
+<span class="k">end</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/version&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/syntax_error&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/xml&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/xslt&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/html&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/decorators/slop&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/css&#39;</span>
+<span class="nb">require</span> <span class="s1">&#39;nokogiri/html/builder&#39;</span>
+
+<span class="c1"># Nokogiri parses and searches XML/HTML very quickly, and also has</span>
+<span class="c1"># correctly implemented CSS3 selector support as well as XPath 1.0</span>
+<span class="c1"># support.</span>
+<span class="c1">#</span>
+<span class="c1"># Parsing a document returns either a Nokogiri::XML::Document, or a</span>
+<span class="c1"># Nokogiri::HTML::Document depending on the kind of document you parse.</span>
+<span class="c1">#</span>
+<span class="c1"># Here is an example:</span>
+<span class="c1">#</span>
+<span class="c1">#   require &#39;nokogiri&#39;</span>
+<span class="c1">#   require &#39;open-uri&#39;</span>
+<span class="c1">#</span>
+<span class="c1">#   # Get a Nokogiri::HTML:Document for the page we’re interested in...</span>
+<span class="c1">#</span>
+<span class="c1">#   doc = Nokogiri::HTML(open(&#39;http://www.google.com/search?q=tenderlove&#39;))</span>
+<span class="c1">#</span>
+<span class="c1">#   # Do funky things with it using Nokogiri::XML::Node methods...</span>
+<span class="c1">#</span>
+<span class="c1">#   ####</span>
+<span class="c1">#   # Search for nodes by css</span>
+<span class="c1">#   doc.css(&#39;h3.r a.l&#39;).each do |link|</span>
+<span class="c1">#     puts link.content</span>
+<span class="c1">#   end</span>
+<span class="c1">#</span>
+<span class="c1"># See Nokogiri::XML::Node#css for more information about CSS searching.</span>
+<span class="c1"># See Nokogiri::XML::Node#xpath for more information about XPath searching.</span>
+<span class="k">module</span> <span class="nn">Nokogiri</span>
+  <span class="k">class</span> <span class="o">&lt;&lt;</span> <span class="nb">self</span>
+    <span class="c1">###</span>
+    <span class="c1"># Parse an HTML or XML document.  +string+ contains the document.</span>
+    <span class="k">def</span> <span class="nf">parse</span> <span class="n">string</span><span class="p">,</span> <span class="n">url</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">encoding</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">options</span> <span class="o">=</span> <span class="kp">nil</span>
+      <span class="k">if</span> <span class="n">string</span><span class="o">.</span><span class="n">respond_to?</span><span class="p">(</span><span class="ss">:read</span><span class="p">)</span> <span class="o">||</span>
+          <span class="sr">/^\s*&lt;(?:!DOCTYPE\s+)?html[\s&gt;]/i</span> <span class="o">===</span> <span class="n">string</span><span class="o">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">512</span><span class="o">]</span>
+        <span class="c1"># Expect an HTML indicator to appear within the first 512</span>
+        <span class="c1"># characters of a document. (&lt;?xml ?&gt; + &lt;?xml-stylesheet ?&gt;</span>
+        <span class="c1"># shouldn&#39;t be that long)</span>
+        <span class="no">Nokogiri</span><span class="o">.</span><span class="n">HTML</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span>
+          <span class="n">options</span> <span class="o">||</span> <span class="no">XML</span><span class="o">::</span><span class="no">ParseOptions</span><span class="o">::</span><span class="no">DEFAULT_HTML</span><span class="p">)</span>
+      <span class="k">else</span>
+        <span class="no">Nokogiri</span><span class="o">.</span><span class="n">XML</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span>
+          <span class="n">options</span> <span class="o">||</span> <span class="no">XML</span><span class="o">::</span><span class="no">ParseOptions</span><span class="o">::</span><span class="no">DEFAULT_XML</span><span class="p">)</span>
+      <span class="k">end</span><span class="o">.</span><span class="n">tap</span> <span class="p">{</span> <span class="o">|</span><span class="n">doc</span><span class="o">|</span>
+        <span class="k">yield</span> <span class="n">doc</span> <span class="k">if</span> <span class="nb">block_given?</span>
+      <span class="p">}</span>
+    <span class="k">end</span>
+
+    <span class="c1">###</span>
+    <span class="c1"># Create a new Nokogiri::XML::DocumentFragment</span>
+    <span class="k">def</span> <span class="nf">make</span> <span class="n">input</span> <span class="o">=</span> <span class="kp">nil</span><span class="p">,</span> <span class="n">opts</span> <span class="o">=</span> <span class="p">{},</span> <span class="o">&amp;</span><span class="n">blk</span>
+      <span class="k">if</span> <span class="n">input</span>
+        <span class="no">Nokogiri</span><span class="o">::</span><span class="no">HTML</span><span class="o">.</span><span class="n">fragment</span><span class="p">(</span><span class="n">input</span><span class="p">)</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">first</span>
+      <span class="k">else</span>
+        <span class="no">Nokogiri</span><span class="p">(</span><span class="o">&amp;</span><span class="n">blk</span><span class="p">)</span>
+      <span class="k">end</span>
+    <span class="k">end</span>
+
+    <span class="c1">###</span>
+    <span class="c1"># Parse a document and add the Slop decorator.  The Slop decorator</span>
+    <span class="c1"># implements method_missing such that methods may be used instead of CSS</span>
+    <span class="c1"># or XPath.  For example:</span>
+    <span class="c1">#</span>
+    <span class="c1">#   doc = Nokogiri::Slop(&lt;&lt;-eohtml)</span>
+    <span class="c1">#     &lt;html&gt;</span>
+    <span class="c1">#       &lt;body&gt;</span>
+    <span class="c1">#         &lt;p&gt;first&lt;/p&gt;</span>
+    <span class="c1">#         &lt;p&gt;second&lt;/p&gt;</span>
+    <span class="c1">#       &lt;/body&gt;</span>
+    <span class="c1">#     &lt;/html&gt;</span>
+    <span class="c1">#   eohtml</span>
+    <span class="c1">#   assert_equal(&#39;second&#39;, doc.html.body.p[1].text)</span>
+    <span class="c1">#</span>
+    <span class="k">def</span> <span class="nf">Slop</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
+      <span class="no">Nokogiri</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span><span class="o">.</span><span class="n">slop!</span>
+    <span class="k">end</span>
+  <span class="k">end</span>
+
+  <span class="c1"># Make sure to support some popular encoding aliases not known by</span>
+  <span class="c1"># all iconv implementations.</span>
+  <span class="p">{</span>
+    <span class="s1">&#39;Windows-31J&#39;</span> <span class="o">=&gt;</span> <span class="s1">&#39;CP932&#39;</span><span class="p">,</span>	<span class="c1"># Windows-31J is the IANA registered name of CP932.</span>
+  <span class="p">}</span><span class="o">.</span><span class="n">each</span> <span class="p">{</span> <span class="o">|</span><span class="n">alias_name</span><span class="p">,</span> <span class="nb">name</span><span class="o">|</span>
+    <span class="no">EncodingHandler</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="nb">name</span><span class="p">,</span> <span class="n">alias_name</span><span class="p">)</span> <span class="k">if</span> <span class="no">EncodingHandler</span><span class="o">[</span><span class="n">alias_name</span><span class="o">].</span><span class="n">nil?</span>
+  <span class="p">}</span>
+<span class="k">end</span>
+
+<span class="c1">###</span>
+<span class="c1"># Parser a document contained in +args+.  Nokogiri will try to guess what</span>
+<span class="c1"># type of document you are attempting to parse.  For more information, see</span>
+<span class="c1"># Nokogiri.parse</span>
+<span class="c1">#</span>
+<span class="c1"># To specify the type of document, use Nokogiri.XML or Nokogiri.HTML.</span>
+<span class="k">def</span> <span class="nf">Nokogiri</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">block</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nb">block_given?</span>
+    <span class="no">Nokogiri</span><span class="o">::</span><span class="no">HTML</span><span class="o">::</span><span class="no">Builder</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="o">&amp;</span><span class="n">block</span><span class="p">)</span><span class="o">.</span><span class="n">doc</span><span class="o">.</span><span class="n">root</span>
+  <span class="k">else</span>
+    <span class="no">Nokogiri</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+  <span class="k">end</span>
+<span class="k">end</span>
 </pre></div>
       </div>
     </div>
