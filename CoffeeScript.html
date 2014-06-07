@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="styles/github.css">
+</head>
+
+<body>
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-2">
+      <ul><li><a href="C.html">C</a></li>
+<li><a href="CoffeeScript.html">CoffeeScript</a></li>
+<li><a href="Python.html">Python</a></li>
+<li><a href="Ruby.html">Ruby</a></li></ul>
+    </div>
+    <div class="col-sm-4">
+      <div class="highlight"><pre><span class="c1"># Examples from the Poignant Guide.</span>
+<span class="c1"># These are examples of syntax differences between CoffeeScript and Ruby,</span>
+<span class="c1"># they won&#39;t run.</span>
+
+<span class="c1"># [&#39;toast&#39;, &#39;cheese&#39;, &#39;wine&#39;].each { |food| print food.capitalize }</span>
+
+<span class="nx">print</span> <span class="nx">food</span><span class="p">.</span><span class="nx">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="nx">food</span> <span class="k">in</span> <span class="p">[</span><span class="s">&#39;toast&#39;</span><span class="p">,</span> <span class="s">&#39;wine&#39;</span><span class="p">,</span> <span class="s">&#39;cheese&#39;</span><span class="p">]</span>
+
+<span class="c1"># class LotteryTicket</span>
+<span class="c1">#   def picks;           @picks;            end</span>
+<span class="c1">#   def picks=(var);     @picks = var;      end</span>
+<span class="c1">#   def purchased;       @purchased;        end</span>
+<span class="c1">#   def purchased=(var); @purchased = var;  end</span>
+<span class="c1"># end</span>
+
+<span class="nv">LotteryTicket =</span>
+  <span class="nv">get_picks: </span>    <span class="nf">-&gt;</span> <span class="nx">@picks</span>
+  <span class="nv">set_picks: </span>    <span class="nf">(@picks) -&gt;</span>
+  <span class="nv">get_purchased: </span><span class="nf">-&gt;</span> <span class="nx">@purchase</span>
+  <span class="nv">set_purchased: </span><span class="nf">(@purchased) -&gt;</span>
+
+
+
+<span class="c1"># class &lt;&lt; LotteryDraw</span>
+<span class="c1">#   def play</span>
+<span class="c1">#     result = LotteryTicket.new_random</span>
+<span class="c1">#     winners = {}</span>
+<span class="c1">#     @@tickets.each do |buyer, ticket_list|</span>
+<span class="c1">#       ticket_list.each do |ticket|</span>
+<span class="c1">#         score = ticket.score( result )</span>
+<span class="c1">#         next if score.zero?</span>
+<span class="c1">#         winners[buyer] ||= []</span>
+<span class="c1">#         winners[buyer] &lt;&lt; [ ticket, score ]</span>
+<span class="c1">#       end</span>
+<span class="c1">#     end</span>
+<span class="c1">#     @@tickets.clear</span>
+<span class="c1">#     winners</span>
+<span class="c1">#   end</span>
+<span class="c1"># end</span>
+
+<span class="nv">LotteryDraw =</span>
+  <span class="nv">play: </span><span class="nf">-&gt;</span>
+    <span class="nv">result  = </span><span class="nx">LotteryTicket</span><span class="p">.</span><span class="nx">new_random</span><span class="p">()</span>
+    <span class="nv">winners = </span><span class="p">{}</span>
+    <span class="k">for</span> <span class="nx">buyer</span><span class="p">,</span> <span class="nx">ticketList</span> <span class="k">of</span> <span class="nx">@tickets</span>
+      <span class="k">for</span> <span class="nx">ticket</span> <span class="k">in</span> <span class="nx">ticketList</span> <span class="k">when</span> <span class="p">(</span><span class="nv">score = </span><span class="nx">ticket</span><span class="p">.</span><span class="nx">score</span> <span class="nx">result</span><span class="p">)</span> <span class="o">isnt</span> <span class="mi">0</span>
+        <span class="p">(</span><span class="nx">winners</span><span class="p">[</span><span class="nx">buyer</span><span class="p">]</span> <span class="o">or=</span> <span class="p">[]).</span><span class="nx">push</span> <span class="p">[</span><span class="nx">ticket</span><span class="p">,</span> <span class="nx">score</span><span class="p">]</span>
+    <span class="vi">@tickets = </span><span class="p">{}</span>
+    <span class="nx">winners</span>
+
+
+
+<span class="c1"># module WishScanner</span>
+<span class="c1">#   def scan_for_a_wish</span>
+<span class="c1">#     wish = self.read.detect do |thought|</span>
+<span class="c1">#       thought.index( &#39;wish: &#39; ) == 0</span>
+<span class="c1">#     end</span>
+<span class="c1">#     wish.gsub( &#39;wish: &#39;, &#39;&#39; )</span>
+<span class="c1">#   end</span>
+<span class="c1"># end</span>
+
+<span class="nv">WishScanner =</span>
+  <span class="nv">scan_for_a_wish: </span><span class="nf">-&gt;</span>
+    <span class="nv">wish = </span><span class="nx">@read</span><span class="p">().</span><span class="nx">detect</span> <span class="nf">(thought) -&gt;</span> <span class="nx">thought</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s">&#39;wish: &#39;</span><span class="p">)</span> <span class="o">is</span> <span class="mi">0</span>
+    <span class="nx">wish</span><span class="p">.</span><span class="nx">replace</span> <span class="s">&#39;wish: &#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span>
+
+
+
+<span class="c1"># class Creature</span>
+<span class="c1">#</span>
+<span class="c1">#   # This method applies a hit taken during a fight.</span>
+<span class="c1">#   def hit( damage )</span>
+<span class="c1">#     p_up = rand( charisma )</span>
+<span class="c1">#     if p_up % 9 == 7</span>
+<span class="c1">#       @life += p_up / 4</span>
+<span class="c1">#       console.log &quot;[#{ self.class } magick powers up #{ p_up }!]&quot;</span>
+<span class="c1">#     end</span>
+<span class="c1">#     @life -= damage</span>
+<span class="c1">#     console.log &quot;[#{ self.class } has died.]&quot; if @life &lt;= 0</span>
+<span class="c1">#   end</span>
+<span class="c1">#</span>
+<span class="c1">#   # This method takes one turn in a fight.</span>
+<span class="c1">#   def fight( enemy, weapon )</span>
+<span class="c1">#     if life &lt;= 0</span>
+<span class="c1">#       console.log &quot;[#{ self.class } is too dead to fight!]&quot;</span>
+<span class="c1">#       return</span>
+<span class="c1">#     end</span>
+<span class="c1">#</span>
+<span class="c1">#     # Attack the opponent</span>
+<span class="c1">#     your_hit = rand( strength + weapon )</span>
+<span class="c1">#     console.log &quot;[You hit with #{ your_hit } points of damage!]&quot;</span>
+<span class="c1">#     enemy.hit( your_hit )</span>
+<span class="c1">#</span>
+<span class="c1">#     # Retaliation</span>
+<span class="c1">#     p enemy</span>
+<span class="c1">#     if enemy.life &gt; 0</span>
+<span class="c1">#       enemy_hit = rand( enemy.strength + enemy.weapon )</span>
+<span class="c1">#       console.log &quot;[Your enemy hit with #{ enemy_hit } points of damage!]&quot;</span>
+<span class="c1">#       self.hit( enemy_hit )</span>
+<span class="c1">#     end</span>
+<span class="c1">#   end</span>
+<span class="c1">#</span>
+<span class="c1"># end</span>
+
+<span class="nv">Creature =</span>
+
+  <span class="c1"># This method applies a hit taken during a fight.</span>
+  <span class="nv">hit: </span><span class="nf">(damage) -&gt;</span>
+    <span class="nv">p_up = </span><span class="nb">Math</span><span class="p">.</span><span class="nx">rand</span> <span class="nx">@charisma</span>
+    <span class="k">if</span> <span class="nx">p_up</span> <span class="o">%</span> <span class="mi">9</span> <span class="o">is</span> <span class="mi">7</span>
+      <span class="nx">@life</span> <span class="o">+=</span> <span class="nx">p_up</span> <span class="o">/</span> <span class="mi">4</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="s">&quot;[</span><span class="si">#{</span><span class="nx">@name</span><span class="si">}</span><span class="s"> magick powers up </span><span class="si">#{</span><span class="nx">p_up</span><span class="si">}</span><span class="s">!]&quot;</span>
+    <span class="nx">@life</span> <span class="o">-=</span> <span class="nx">damage</span>
+    <span class="k">if</span> <span class="nx">@life</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="k">then</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="s">&quot;[</span><span class="si">#{</span><span class="nx">@name</span><span class="si">}</span><span class="s"> has died.]&quot;</span>
+
+  <span class="c1"># This method takes one turn in a fight.</span>
+  <span class="nv">fight: </span><span class="nf">(enemy, weapon) -&gt;</span>
+    <span class="k">return</span> <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="s">&quot;[</span><span class="si">#{</span><span class="nx">@name</span><span class="si">}</span><span class="s"> is too dead to fight!]&quot;</span> <span class="k">if</span> <span class="nx">@life</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+
+    <span class="c1"># Attack the opponent.</span>
+    <span class="nv">your_hit = </span><span class="nb">Math</span><span class="p">.</span><span class="nx">rand</span> <span class="nx">@strength</span> <span class="o">+</span> <span class="nx">weapon</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="s">&quot;[You hit with </span><span class="si">#{</span><span class="nx">your_hit</span><span class="si">}</span><span class="s">points of damage!]&quot;</span>
+    <span class="nx">enemy</span><span class="p">.</span><span class="nx">hit</span> <span class="nx">your_hit</span>
+
+    <span class="c1"># Retaliation.</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="nx">enemy</span>
+    <span class="k">if</span> <span class="nx">enemy</span><span class="p">.</span><span class="nx">life</span> <span class="o">&gt;</span> <span class="mi">0</span>
+      <span class="nv">enemy_hit = </span><span class="nb">Math</span><span class="p">.</span><span class="nx">rand</span> <span class="nx">enemy</span><span class="p">.</span><span class="nx">strength</span> <span class="o">+</span> <span class="nx">enemy</span><span class="p">.</span><span class="nx">weapon</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nx">log</span> <span class="s">&quot;[Your enemy hit with </span><span class="si">#{</span><span class="nx">enemy_hit</span><span class="si">}</span><span class="s">points of damage!]&quot;</span>
+      <span class="nx">@hit</span> <span class="nx">enemy_hit</span>
+
+
+
+<span class="c1"># # Get evil idea and swap in code words</span>
+<span class="c1"># print &quot;Enter your new idea: &quot;</span>
+<span class="c1"># idea = gets</span>
+<span class="c1"># code_words.each do |real, code|</span>
+<span class="c1">#   idea.gsub!( real, code )</span>
+<span class="c1"># end</span>
+<span class="c1">#</span>
+<span class="c1"># # Save the jibberish to a new file</span>
+<span class="c1"># print &quot;File encoded.  Please enter a name for this idea: &quot;</span>
+<span class="c1"># idea_name = gets.strip</span>
+<span class="c1"># File::open( &quot;idea-&quot; + idea_name + &quot;.txt&quot;, &quot;w&quot; ) do |f|</span>
+<span class="c1">#   f &lt;&lt; idea</span>
+<span class="c1"># end</span>
+
+<span class="c1"># Get evil idea and swap in code words</span>
+<span class="nx">print</span> <span class="s">&quot;Enter your new idea: &quot;</span>
+<span class="nv">idea = </span><span class="nx">gets</span><span class="p">()</span>
+<span class="nx">code_words</span><span class="p">.</span><span class="nx">each</span> <span class="nf">(real, code) -&gt;</span> <span class="nx">idea</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="nx">real</span><span class="p">,</span> <span class="nx">code</span><span class="p">)</span>
+
+<span class="c1"># Save the jibberish to a new file</span>
+<span class="nx">print</span> <span class="s">&quot;File encoded. Please enter a name for this idea: &quot;</span>
+<span class="nv">idea_name = </span><span class="nx">gets</span><span class="p">().</span><span class="nx">strip</span><span class="p">()</span>
+<span class="nx">File</span><span class="p">.</span><span class="nx">open</span> <span class="s">&quot;idea-</span><span class="si">#{</span><span class="nx">idea_name</span><span class="si">}</span><span class="s">.txt&quot;</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">,</span> <span class="nf">(file) -&gt;</span> <span class="nx">file</span><span class="p">.</span><span class="nx">write</span> <span class="nx">idea</span>
+
+
+
+<span class="c1"># def wipe_mutterings_from( sentence )</span>
+<span class="c1">#   unless sentence.respond_to? :include?</span>
+<span class="c1">#     raise ArgumentError,</span>
+<span class="c1">#       &quot;cannot wipe mutterings from a #{ sentence.class }&quot;</span>
+<span class="c1">#   end</span>
+<span class="c1">#   while sentence.include? &#39;(&#39;</span>
+<span class="c1">#     open = sentence.index( &#39;(&#39; )</span>
+<span class="c1">#     close = sentence.index( &#39;)&#39;, open )</span>
+<span class="c1">#     sentence[open..close] = &#39;&#39; if close</span>
+<span class="c1">#   end</span>
+<span class="c1"># end</span>
+
+<span class="nv">wipe_mutterings_from = </span><span class="nf">(sentence) -&gt;</span>
+  <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span> <span class="s">&quot;cannot wipe mutterings&quot;</span> <span class="k">unless</span> <span class="nx">sentence</span><span class="p">.</span><span class="nx">indexOf</span>
+  <span class="k">while</span> <span class="s">&#39;(&#39;</span> <span class="k">in</span> <span class="nx">sentence</span>
+    <span class="nv">open     = </span><span class="nx">sentence</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s">&#39;(&#39;</span><span class="p">)</span>
+    <span class="nv">close    = </span><span class="nx">sentence</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s">&#39;)&#39;</span><span class="p">)</span>
+    <span class="nv">sentence = </span><span class="s">&quot;</span><span class="si">#{</span><span class="nx">sentence</span><span class="p">[</span><span class="mi">0</span><span class="p">...</span><span class="nx">open</span><span class="p">]</span><span class="si">}#{</span><span class="nx">sentence</span><span class="p">[</span><span class="nx">close</span> <span class="o">+</span> <span class="mi">1</span><span class="p">..]</span><span class="si">}</span><span class="s">&quot;</span>
+    <span class="nx">sentence</span>
+</pre></div>
+    </div>
+    <div class="col-sm-4">
+      <div class="highlight"><pre><span class="c1"><span class="c">#</span> Examples from the Poignant Guide.</span>
+<span class="c1"><span class="c">#</span> These are examples of syntax differences between CoffeeScript and Ruby,</span>
+<span class="c1"><span class="c">#</span> they won&#39;t run.</span>
+
+<span class="c1"><span class="c">#</span> [&#39;toast&#39;, &#39;cheese&#39;, &#39;wine&#39;].each { |food| print food.capitalize }</span>
+
+print food.capitalize() <span class="nl">for</span> food <span class="nl">in</span> [<span class="sb"><span class="sb">&#39;</span>toast<span class="sb">&#39;</span></span>, <span class="sb"><span class="sb">&#39;</span>wine<span class="sb">&#39;</span></span>, <span class="sb"><span class="sb">&#39;</span>cheese<span class="sb">&#39;</span></span>]
+
+<span class="c1"><span class="c">#</span> class LotteryTicket</span>
+<span class="c1"><span class="c">#</span>   def picks;           @picks;            end</span>
+<span class="c1"><span class="c">#</span>   def picks=(var);     @picks = var;      end</span>
+<span class="c1"><span class="c">#</span>   def purchased;       @purchased;        end</span>
+<span class="c1"><span class="c">#</span>   def purchased=(var); @purchased = var;  end</span>
+<span class="c1"><span class="c">#</span> end</span>
+
+LotteryTicket <span class="o">=</span>
+  <span class="nf">get_pick<span class="nf">s</span></span>:     <span class="kt">-&gt;</span><span class="o">:</span>     <span class="kt">-&gt;</span> <span class="nv">@picks</span>
+  <span class="nf">set_pick<span class="nf">s</span></span>:     (@picks) <span class="kt">-&gt;</span><span class="o">:</span>     (@picks) <span class="kt">-&gt;</span>
+  <span class="nf">get_purchase<span class="nf">d</span></span>: <span class="kt">-&gt;</span><span class="o">:</span> <span class="kt">-&gt;</span> <span class="nv">@purchase</span>
+  <span class="nf">set_purchase<span class="nf">d</span></span>: (@purchased) <span class="kt">-&gt;</span><span class="o">:</span> (@purchased) <span class="kt">-&gt;</span>
+
+
+
+<span class="c1"><span class="c">#</span> class &lt;&lt; LotteryDraw</span>
+<span class="c1"><span class="c">#</span>   def play</span>
+<span class="c1"><span class="c">#</span>     result = LotteryTicket.new_random</span>
+<span class="c1"><span class="c">#</span>     winners = {}</span>
+<span class="c1"><span class="c">#</span>     @@tickets.each do |buyer, ticket_list|</span>
+<span class="c1"><span class="c">#</span>       ticket_list.each do |ticket|</span>
+<span class="c1"><span class="c">#</span>         score = ticket.score( result )</span>
+<span class="c1"><span class="c">#</span>         next if score.zero?</span>
+<span class="c1"><span class="c">#</span>         winners[buyer] ||= []</span>
+<span class="c1"><span class="c">#</span>         winners[buyer] &lt;&lt; [ ticket, score ]</span>
+<span class="c1"><span class="c">#</span>       end</span>
+<span class="c1"><span class="c">#</span>     end</span>
+<span class="c1"><span class="c">#</span>     @@tickets.clear</span>
+<span class="c1"><span class="c">#</span>     winners</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span> end</span>
+
+LotteryDraw <span class="o">=</span>
+  <span class="nf">pla<span class="nf">y</span></span>: <span class="kt">-&gt;</span><span class="o">:</span> <span class="kt">-&gt;</span>
+    result  <span class="o">=</span> LotteryTicket.new_random()
+    winners <span class="o">=</span> {}
+    <span class="nl">for</span> buyer, ticketList <span class="nl">of</span> <span class="nv">@tickets</span>
+      <span class="nl">for</span> ticket <span class="nl">in</span> ticketList <span class="nl">when</span> (score <span class="o">=</span> ticket.score result) <span class="o">isnt</span> <span class="m">0</span>
+        (winners[buyer] <span class="o">or=</span> []).<span class="k">push</span> [ticket, score]
+    <span class="nv">@tickets</span> <span class="o">=</span> {}
+    winners
+
+
+
+<span class="c1"><span class="c">#</span> module WishScanner</span>
+<span class="c1"><span class="c">#</span>   def scan_for_a_wish</span>
+<span class="c1"><span class="c">#</span>     wish = self.read.detect do |thought|</span>
+<span class="c1"><span class="c">#</span>       thought.index( &#39;wish: &#39; ) == 0</span>
+<span class="c1"><span class="c">#</span>     end</span>
+<span class="c1"><span class="c">#</span>     wish.gsub( &#39;wish: &#39;, &#39;&#39; )</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span> end</span>
+
+WishScanner <span class="o">=</span>
+  <span class="nf">scan_for_a_wis<span class="nf">h</span></span>: <span class="kt">-&gt;</span><span class="o">:</span> <span class="kt">-&gt;</span>
+    wish <span class="o">=</span> <span class="nv">@read</span>().detect (thought) <span class="kt">-&gt;</span> thought.<span class="k">indexOf</span>(<span class="sb"><span class="sb">&#39;</span>wish: <span class="sb">&#39;</span></span>) <span class="o">is</span> <span class="m">0</span>
+    wish.replace <span class="sb"><span class="sb">&#39;</span>wish: <span class="sb">&#39;</span></span>, <span class="sb"><span class="sb">&#39;</span><span class="sb">&#39;</span></span>
+
+
+
+<span class="c1"><span class="c">#</span> class Creature</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span>   # This method applies a hit taken during a fight.</span>
+<span class="c1"><span class="c">#</span>   def hit( damage )</span>
+<span class="c1"><span class="c">#</span>     p_up = rand( charisma )</span>
+<span class="c1"><span class="c">#</span>     if p_up % 9 == 7</span>
+<span class="c1"><span class="c">#</span>       @life += p_up / 4</span>
+<span class="c1"><span class="c">#</span>       console.log &quot;[#{ self.class } magick powers up #{ p_up }!]&quot;</span>
+<span class="c1"><span class="c">#</span>     end</span>
+<span class="c1"><span class="c">#</span>     @life -= damage</span>
+<span class="c1"><span class="c">#</span>     console.log &quot;[#{ self.class } has died.]&quot; if @life &lt;= 0</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span>   # This method takes one turn in a fight.</span>
+<span class="c1"><span class="c">#</span>   def fight( enemy, weapon )</span>
+<span class="c1"><span class="c">#</span>     if life &lt;= 0</span>
+<span class="c1"><span class="c">#</span>       console.log &quot;[#{ self.class } is too dead to fight!]&quot;</span>
+<span class="c1"><span class="c">#</span>       return</span>
+<span class="c1"><span class="c">#</span>     end</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span>     # Attack the opponent</span>
+<span class="c1"><span class="c">#</span>     your_hit = rand( strength + weapon )</span>
+<span class="c1"><span class="c">#</span>     console.log &quot;[You hit with #{ your_hit } points of damage!]&quot;</span>
+<span class="c1"><span class="c">#</span>     enemy.hit( your_hit )</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span>     # Retaliation</span>
+<span class="c1"><span class="c">#</span>     p enemy</span>
+<span class="c1"><span class="c">#</span>     if enemy.life &gt; 0</span>
+<span class="c1"><span class="c">#</span>       enemy_hit = rand( enemy.strength + enemy.weapon )</span>
+<span class="c1"><span class="c">#</span>       console.log &quot;[Your enemy hit with #{ enemy_hit } points of damage!]&quot;</span>
+<span class="c1"><span class="c">#</span>       self.hit( enemy_hit )</span>
+<span class="c1"><span class="c">#</span>     end</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span> end</span>
+
+Creature <span class="o">=</span>
+
+  <span class="c1"><span class="c">#</span> This method applies a hit taken during a fight.</span>
+  <span class="nf">hi<span class="nf">t</span></span>: (damage) <span class="kt">-&gt;</span><span class="o">:</span> (damage) <span class="kt">-&gt;</span>
+    p_up <span class="o">=</span> <span class="nb">Math</span>.rand <span class="nv">@charisma</span>
+    <span class="nl">if</span> p_up <span class="o">%</span> <span class="m">9</span> <span class="o">is</span> <span class="m">7</span>
+      <span class="nv">@life</span> <span class="o">+</span><span class="o">=</span> p_up <span class="o">/</span> <span class="m">4</span>
+      <span class="nc">console</span>.<span class="k">log</span> <span class="s2"><span class="s2">&quot;</span>[<span class="s2"><span class="s2">#{</span><span class="nv">@name</span><span class="s2">}</span></span> magick powers up <span class="s2"><span class="s2">#{</span>p_up<span class="s2">}</span></span>!]<span class="s2">&quot;</span></span>
+    <span class="nv">@life</span> <span class="o">-</span><span class="o">=</span> damage
+    <span class="nl">if</span> <span class="nv">@life</span> <span class="o">&lt;=</span> <span class="m">0</span> <span class="nl">then</span> <span class="nc">console</span>.<span class="k">log</span> <span class="s2"><span class="s2">&quot;</span>[<span class="s2"><span class="s2">#{</span><span class="nv">@name</span><span class="s2">}</span></span> has died.]<span class="s2">&quot;</span></span>
+
+  <span class="c1"><span class="c">#</span> This method takes one turn in a fight.</span>
+  <span class="nf">figh<span class="nf">t</span></span>: (enemy, weapon) <span class="kt">-&gt;</span><span class="o">:</span> (enemy, weapon) <span class="kt">-&gt;</span>
+    <span class="nl">return</span> <span class="nc">console</span>.<span class="k">log</span> <span class="s2"><span class="s2">&quot;</span>[<span class="s2"><span class="s2">#{</span><span class="nv">@name</span><span class="s2">}</span></span> is too dead to fight!]<span class="s2">&quot;</span></span> <span class="nl">if</span> <span class="nv">@life</span> <span class="o">&lt;=</span> <span class="m">0</span>
+
+    <span class="c1"><span class="c">#</span> Attack the opponent.</span>
+    your_hit <span class="o">=</span> <span class="nb">Math</span>.rand <span class="nv">@strength</span> <span class="o">+</span> weapon
+    <span class="nc">console</span>.<span class="k">log</span> <span class="s2"><span class="s2">&quot;</span>[You hit with <span class="s2"><span class="s2">#{</span>your_hit<span class="s2">}</span></span>points of damage!]<span class="s2">&quot;</span></span>
+    enemy.hit your_hit
+
+    <span class="c1"><span class="c">#</span> Retaliation.</span>
+    <span class="nc">console</span>.<span class="k">log</span> enemy
+    <span class="nl">if</span> enemy.life <span class="o">&gt;</span> <span class="m">0</span>
+      enemy_hit <span class="o">=</span> <span class="nb">Math</span>.rand enemy.strength <span class="o">+</span> enemy.weapon
+      <span class="nc">console</span>.<span class="k">log</span> <span class="s2"><span class="s2">&quot;</span>[Your enemy hit with <span class="s2"><span class="s2">#{</span>enemy_hit<span class="s2">}</span></span>points of damage!]<span class="s2">&quot;</span></span>
+      <span class="nv">@hit</span> enemy_hit
+
+
+
+<span class="c1"><span class="c">#</span> # Get evil idea and swap in code words</span>
+<span class="c1"><span class="c">#</span> print &quot;Enter your new idea: &quot;</span>
+<span class="c1"><span class="c">#</span> idea = gets</span>
+<span class="c1"><span class="c">#</span> code_words.each do |real, code|</span>
+<span class="c1"><span class="c">#</span>   idea.gsub!( real, code )</span>
+<span class="c1"><span class="c">#</span> end</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span> # Save the jibberish to a new file</span>
+<span class="c1"><span class="c">#</span> print &quot;File encoded.  Please enter a name for this idea: &quot;</span>
+<span class="c1"><span class="c">#</span> idea_name = gets.strip</span>
+<span class="c1"><span class="c">#</span> File::open( &quot;idea-&quot; + idea_name + &quot;.txt&quot;, &quot;w&quot; ) do |f|</span>
+<span class="c1"><span class="c">#</span>   f &lt;&lt; idea</span>
+<span class="c1"><span class="c">#</span> end</span>
+
+<span class="c1"><span class="c">#</span> Get evil idea and swap in code words</span>
+print <span class="s2"><span class="s2">&quot;</span>Enter your new idea: <span class="s2">&quot;</span></span>
+idea <span class="o">=</span> gets()
+code_words.each (real, code) <span class="kt">-&gt;</span> idea.replace(real, code)
+
+<span class="c1"><span class="c">#</span> Save the jibberish to a new file</span>
+print <span class="s2"><span class="s2">&quot;</span>File encoded. Please enter a name for this idea: <span class="s2">&quot;</span></span>
+idea_name <span class="o">=</span> gets().strip()
+File.open <span class="s2"><span class="s2">&quot;</span>idea-<span class="s2"><span class="s2">#{</span>idea_name<span class="s2">}</span></span>.txt<span class="s2">&quot;</span></span>, <span class="sb"><span class="sb">&#39;</span>w<span class="sb">&#39;</span></span>, (file) <span class="kt">-&gt;</span> file.write idea
+
+
+
+<span class="c1"><span class="c">#</span> def wipe_mutterings_from( sentence )</span>
+<span class="c1"><span class="c">#</span>   unless sentence.respond_to? :include?</span>
+<span class="c1"><span class="c">#</span>     raise ArgumentError,</span>
+<span class="c1"><span class="c">#</span>       &quot;cannot wipe mutterings from a #{ sentence.class }&quot;</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span>   while sentence.include? &#39;(&#39;</span>
+<span class="c1"><span class="c">#</span>     open = sentence.index( &#39;(&#39; )</span>
+<span class="c1"><span class="c">#</span>     close = sentence.index( &#39;)&#39;, open )</span>
+<span class="c1"><span class="c">#</span>     sentence[open..close] = &#39;&#39; if close</span>
+<span class="c1"><span class="c">#</span>   end</span>
+<span class="c1"><span class="c">#</span> end</span>
+
+<span class="nf">wipe_mutterings_fro<span class="nf">m</span> </span>= (sentence) <span class="kt">-&gt;</span><span class="o">=</span> (sentence) <span class="kt">-&gt;</span>
+  <span class="nl">throw</span> <span class="o">new</span> <span class="nc">Error</span> <span class="s2"><span class="s2">&quot;</span>cannot wipe mutterings<span class="s2">&quot;</span></span> <span class="nl">unless</span> sentence.<span class="k">indexOf</span>
+  <span class="nl">while</span> <span class="sb"><span class="sb">&#39;</span>(<span class="sb">&#39;</span></span> <span class="nl">in</span> sentence
+    open     <span class="o">=</span> sentence.<span class="k">indexOf</span>(<span class="sb"><span class="sb">&#39;</span>(<span class="sb">&#39;</span></span>)
+    close    <span class="o">=</span> sentence.<span class="k">indexOf</span>(<span class="sb"><span class="sb">&#39;</span>)<span class="sb">&#39;</span></span>)
+    sentence <span class="o">=</span> <span class="s2"><span class="s2">&quot;</span><span class="s2"><span class="s2">#{</span>sentence<span class="s2">[</span><span class="m">0</span><span class="o">...</span>open<span class="s2">]</span><span class="s2">}</span></span><span class="s2"><span class="s2">#{</span>sentence<span class="s2">[</span>close <span class="o">+</span> <span class="m">1</span><span class="o">..</span><span class="s2">]</span><span class="s2">}</span></span><span class="s2">&quot;</span></span>
+    sentence
+</pre></div>
+    </div>
+    <div class="col-sm-2">
+
+    </div>
+  </div>
+</div>
+
+</body>
+
+<html>

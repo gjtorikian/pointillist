@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="styles/github.css">
+</head>
+
+<body>
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-2">
+      <ul><li><a href="C.html">C</a></li>
+<li><a href="CoffeeScript.html">CoffeeScript</a></li>
+<li><a href="Python.html">Python</a></li>
+<li><a href="Ruby.html">Ruby</a></li></ul>
+    </div>
+    <div class="col-sm-4">
+      <div class="highlight"><pre><span class="c"># -*- coding: utf-8 -</span>
+<span class="c">#</span>
+<span class="c"># This file is part of gunicorn released under the MIT license.</span>
+<span class="c"># See the NOTICE for more information.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">with_statement</span>
+
+<span class="kn">import</span> <span class="nn">errno</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">select</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+
+<span class="kn">from</span> <span class="nn">gunicorn.errors</span> <span class="kn">import</span> <span class="n">HaltServer</span>
+<span class="kn">from</span> <span class="nn">gunicorn.pidfile</span> <span class="kn">import</span> <span class="n">Pidfile</span>
+<span class="kn">from</span> <span class="nn">gunicorn.sock</span> <span class="kn">import</span> <span class="n">create_socket</span>
+<span class="kn">from</span> <span class="nn">gunicorn</span> <span class="kn">import</span> <span class="n">util</span>
+
+<span class="kn">from</span> <span class="nn">gunicorn</span> <span class="kn">import</span> <span class="n">__version__</span><span class="p">,</span> <span class="n">SERVER_SOFTWARE</span>
+
+<span class="k">class</span> <span class="nc">Arbiter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Arbiter maintain the workers processes alive. It launches or</span>
+<span class="sd">    kills them if needed. It also manages application reloading</span>
+<span class="sd">    via SIGHUP/USR2.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># A flag indicating if a worker failed to</span>
+    <span class="c"># to boot. If a worker process exist with</span>
+    <span class="c"># this error code, the arbiter will terminate.</span>
+    <span class="n">WORKER_BOOT_ERROR</span> <span class="o">=</span> <span class="mi">3</span>
+
+    <span class="n">START_CTX</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">LISTENER</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">WORKERS</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">PIPE</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c"># I love dynamic languages</span>
+    <span class="n">SIG_QUEUE</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">SIGNALS</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="s">&quot;SIG</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">x</span><span class="p">),</span>
+        <span class="s">&quot;HUP QUIT INT TERM TTIN TTOU USR1 USR2 WINCH&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="n">SIG_NAMES</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="n">name</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;SIG&quot;</span> <span class="ow">and</span> <span class="n">name</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&quot;_&quot;</span>
+    <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&quot;SERVER_SOFTWARE&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SERVER_SOFTWARE</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_age</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reexec_pid</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">master_name</span> <span class="o">=</span> <span class="s">&quot;Master&quot;</span>
+
+        <span class="c"># get current path, try to use PWD env first</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&#39;PWD&#39;</span><span class="p">])</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">stat</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">ino</span> <span class="o">==</span> <span class="n">b</span><span class="o">.</span><span class="n">ino</span> <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">dev</span> <span class="o">==</span> <span class="n">b</span><span class="o">.</span><span class="n">dev</span><span class="p">:</span>
+                <span class="n">cwd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&#39;PWD&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cwd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">cwd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[:]</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">)</span>
+
+        <span class="c"># init start context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">START_CTX</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&quot;args&quot;</span><span class="p">:</span> <span class="n">args</span><span class="p">,</span>
+            <span class="s">&quot;cwd&quot;</span><span class="p">:</span> <span class="n">cwd</span><span class="p">,</span>
+            <span class="mi">0</span><span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">executable</span>
+        <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span> <span class="o">=</span> <span class="n">app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">logger_class</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">cfg</span><span class="p">)</span>
+
+        <span class="c"># reopen files</span>
+        <span class="k">if</span> <span class="s">&#39;GUNICORN_FD&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">reopen_files</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">address</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">workers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proc_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">proc_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_class</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">worker_class</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;Current configuration:&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">config</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;  </span><span class="si">%s</span><span class="s">: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">preload_app</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">wsgi</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s">&quot;debug mode: app isn&#39;t preloaded.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Initialize the arbiter. Start listening and set pidfile if needed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Starting gunicorn </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">__version__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">on_starting</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_signals</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span> <span class="o">=</span> <span class="n">create_socket</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="o">=</span> <span class="n">Pidfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pidfile</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;Arbiter booted&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Listening at: </span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">)&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Using worker: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">settings</span><span class="p">[</span><span class="s">&#39;worker_class&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">())</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">when_ready</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">init_signals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Initialize master signal handling. Most of the signals</span>
+<span class="sd">        are queued. Child signals only wake up the master.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span><span class="p">:</span>
+            <span class="nb">map</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span> <span class="o">=</span> <span class="n">pair</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">pipe</span><span class="p">()</span>
+        <span class="nb">map</span><span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">set_non_blocking</span><span class="p">,</span> <span class="n">pair</span><span class="p">)</span>
+        <span class="nb">map</span><span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">close_on_exec</span><span class="p">,</span> <span class="n">pair</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">close_on_exec</span><span class="p">()</span>
+        <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">signal</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIGNALS</span><span class="p">)</span>
+        <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGCHLD</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">handle_chld</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SIG_QUEUE</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">SIG_QUEUE</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wakeup</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s">&quot;Main master loop.&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">_setproctitle</span><span class="p">(</span><span class="s">&quot;master [</span><span class="si">%s</span><span class="s">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">proc_name</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">manage_workers</span><span class="p">()</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">reap_workers</span><span class="p">()</span>
+                <span class="n">sig</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIG_QUEUE</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SIG_QUEUE</span><span class="p">)</span> <span class="k">else</span> <span class="bp">None</span>
+                <span class="k">if</span> <span class="n">sig</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sleep</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">murder_workers</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">manage_workers</span><span class="p">()</span>
+                    <span class="k">continue</span>
+
+                <span class="k">if</span> <span class="n">sig</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIG_NAMES</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Ignoring unknown signal: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">sig</span><span class="p">)</span>
+                    <span class="k">continue</span>
+
+                <span class="n">signame</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">SIG_NAMES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+                <span class="n">handler</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&quot;handle_</span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">signame</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">handler</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s">&quot;Unhandled signal: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">signame</span><span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Handling signal: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">signame</span><span class="p">)</span>
+                <span class="n">handler</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">wakeup</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">halt</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">halt</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">HaltServer</span><span class="p">,</span> <span class="n">inst</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">halt</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="n">inst</span><span class="o">.</span><span class="n">reason</span><span class="p">,</span> <span class="n">exit_status</span><span class="o">=</span><span class="n">inst</span><span class="o">.</span><span class="n">exit_status</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">SystemExit</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Unhandled exception in main loop:</span><span class="se">\n</span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span>
+                            <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">handle_chld</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+        <span class="s">&quot;SIGCHLD handling&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wakeup</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_hup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        HUP handling.</span>
+<span class="sd">        - Reload configuration</span>
+<span class="sd">        - Start the new worker processes with a new configuration</span>
+<span class="sd">        - Gracefully shutdown the old worker processes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Hang up: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">master_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reload</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_quit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s">&quot;SIGQUIT handling&quot;</span>
+        <span class="k">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="k">def</span> <span class="nf">handle_int</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s">&quot;SIGINT handling&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="k">def</span> <span class="nf">handle_term</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s">&quot;SIGTERM handling&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="k">def</span> <span class="nf">handle_ttin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        SIGTTIN handling.</span>
+<span class="sd">        Increases the number of workers by one.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manage_workers</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_ttou</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        SIGTTOU handling.</span>
+<span class="sd">        Decreases the number of workers by one.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manage_workers</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_usr1</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        SIGUSR1 handling.</span>
+<span class="sd">        Kill all workers by sending them a SIGUSR1</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kill_workers</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGUSR1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">reopen_files</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_usr2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        SIGUSR2 handling.</span>
+<span class="sd">        Creates a new master/worker set as a slave of the current</span>
+<span class="sd">        master without affecting old workers. Use this to do live</span>
+<span class="sd">        deployment with the ability to backout a change.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reexec</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">handle_winch</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s">&quot;SIGWINCH handling&quot;</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">getppid</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">getpgrp</span><span class="p">()</span> <span class="o">!=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;graceful stop of workers&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kill_workers</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGQUIT</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;SIGWINCH ignored. Not daemonized&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">wakeup</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Wake up the arbiter by writing to the PIPE</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s">&#39;.&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">IOError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">errno</span><span class="o">.</span><span class="n">EAGAIN</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">EINTR</span><span class="p">]:</span>
+                <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">halt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">exit_status</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; halt arbiter &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Shutting down: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">master_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">reason</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Reason: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">exit_status</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">sleep</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Sleep until PIPE is readable or we timeout.</span>
+<span class="sd">        A readable PIPE means a signal occurred.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ready</span> <span class="o">=</span> <span class="n">select</span><span class="o">.</span><span class="n">select</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ready</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">return</span>
+            <span class="k">while</span> <span class="n">os</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">PIPE</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">except</span> <span class="n">select</span><span class="o">.</span><span class="n">error</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">errno</span><span class="o">.</span><span class="n">EAGAIN</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">EINTR</span><span class="p">]:</span>
+                <span class="k">raise</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">errno</span><span class="o">.</span><span class="n">EAGAIN</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">EINTR</span><span class="p">]:</span>
+                <span class="k">raise</span>
+        <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">()</span>
+
+
+    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graceful</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Stop workers</span>
+
+<span class="sd">        :attr graceful: boolean, If True (the default) workers will be</span>
+<span class="sd">        killed gracefully  (ie. trying to wait for the current connection)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGQUIT</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">graceful</span><span class="p">:</span>
+            <span class="n">sig</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span>
+        <span class="n">limit</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">graceful_timeout</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span> <span class="ow">and</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kill_workers</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reap_workers</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kill_workers</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reexec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Relaunch the master and workers.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="s">&quot;</span><span class="si">%s</span><span class="s">.oldbin&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">fname</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">reexec_pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">fork</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reexec_pid</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">master_name</span> <span class="o">=</span> <span class="s">&quot;Old Master&quot;</span>
+            <span class="k">return</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&#39;GUNICORN_FD&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">START_CTX</span><span class="p">[</span><span class="s">&#39;cwd&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">closerange</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">closerange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="o">.</span><span class="n">fileno</span><span class="p">()</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">util</span><span class="o">.</span><span class="n">get_maxfd</span><span class="p">())</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">execvpe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">START_CTX</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">START_CTX</span><span class="p">[</span><span class="s">&#39;args&#39;</span><span class="p">],</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reload</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">old_address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">address</span>
+
+        <span class="c"># reload conf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">reload</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">)</span>
+
+        <span class="c"># reopen log files</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">reopen_files</span><span class="p">()</span>
+
+        <span class="c"># do we need to change listener ?</span>
+        <span class="k">if</span> <span class="n">old_address</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">address</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span> <span class="o">=</span> <span class="n">create_socket</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Listening at: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="p">)</span>
+
+        <span class="c"># do some actions on reload</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">on_reload</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c"># unlink pidfile</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+
+        <span class="c"># create new pidfile</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pidfile</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span> <span class="o">=</span> <span class="n">Pidfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pidfile</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pidfile</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="p">)</span>
+
+        <span class="c"># set new proc_name</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">_setproctitle</span><span class="p">(</span><span class="s">&quot;master [</span><span class="si">%s</span><span class="s">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">proc_name</span><span class="p">)</span>
+
+        <span class="c"># spawn new workers</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">workers</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">spawn_worker</span><span class="p">()</span>
+
+        <span class="c"># manage workers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">manage_workers</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">murder_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Kill unused/idle workers</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">worker</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">worker</span><span class="o">.</span><span class="n">tmp</span><span class="o">.</span><span class="n">last_update</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">critical</span><span class="p">(</span><span class="s">&quot;WORKER TIMEOUT (pid:</span><span class="si">%s</span><span class="s">)&quot;</span><span class="p">,</span> <span class="n">pid</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kill_worker</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reap_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Reap workers to avoid zombie processes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="n">wpid</span><span class="p">,</span> <span class="n">status</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">waitpid</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">WNOHANG</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">wpid</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">reexec_pid</span> <span class="o">==</span> <span class="n">wpid</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">reexec_pid</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c"># A worker said it cannot boot. We&#39;ll shutdown</span>
+                    <span class="c"># to avoid infinite start/stop cycles.</span>
+                    <span class="n">exitcode</span> <span class="o">=</span> <span class="n">status</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span>
+                    <span class="k">if</span> <span class="n">exitcode</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKER_BOOT_ERROR</span><span class="p">:</span>
+                        <span class="n">reason</span> <span class="o">=</span> <span class="s">&quot;Worker failed to boot.&quot;</span>
+                        <span class="k">raise</span> <span class="n">HaltServer</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKER_BOOT_ERROR</span><span class="p">)</span>
+                    <span class="n">worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">wpid</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">worker</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">worker</span><span class="o">.</span><span class="n">tmp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">ECHILD</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">manage_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Maintain the number of workers by spawning or killing</span>
+<span class="sd">        as required.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">spawn_workers</span><span class="p">()</span>
+
+        <span class="n">workers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="n">workers</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">w</span><span class="p">:</span> <span class="n">w</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">age</span><span class="p">)</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">workers</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="o">=</span> <span class="n">workers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kill_worker</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGQUIT</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">spawn_worker</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">worker_age</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">worker_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">worker_age</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">LISTENER</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">timeout</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">pre_fork</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker</span><span class="p">)</span>
+        <span class="n">pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">fork</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">pid</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="p">[</span><span class="n">pid</span><span class="p">]</span> <span class="o">=</span> <span class="n">worker</span>
+            <span class="k">return</span> <span class="n">pid</span>
+
+        <span class="c"># Process Child</span>
+        <span class="n">worker_pid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">util</span><span class="o">.</span><span class="n">_setproctitle</span><span class="p">(</span><span class="s">&quot;worker [</span><span class="si">%s</span><span class="s">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">proc_name</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Booting worker with pid: </span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">worker_pid</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">post_fork</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker</span><span class="p">)</span>
+            <span class="n">worker</span><span class="o">.</span><span class="n">init_process</span><span class="p">()</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">SystemExit</span><span class="p">:</span>
+            <span class="k">raise</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&quot;Exception in worker process:</span><span class="se">\n</span><span class="si">%s</span><span class="s">&quot;</span><span class="p">,</span>
+                    <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">worker</span><span class="o">.</span><span class="n">booted</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">WORKER_BOOT_ERROR</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&quot;Worker exiting (pid: </span><span class="si">%s</span><span class="s">)&quot;</span><span class="p">,</span> <span class="n">worker_pid</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">worker</span><span class="o">.</span><span class="n">tmp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">worker_exit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">spawn_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Spawn new workers as needed.</span>
+
+<span class="sd">        This is where a worker process leaves the main loop</span>
+<span class="sd">        of the master process.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">keys</span><span class="p">())):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">spawn_worker</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">kill_workers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Kill all workers with the signal `sig`</span>
+<span class="sd">        :attr sig: `signal.SIG*` value</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">pid</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kill_worker</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">sig</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">kill_worker</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;\</span>
+<span class="sd">        Kill a worker</span>
+
+<span class="sd">        :attr pid: int, worker pid</span>
+<span class="sd">        :attr sig: `signal.SIG*` value</span>
+<span class="sd">         &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">sig</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">errno</span> <span class="o">==</span> <span class="n">errno</span><span class="o">.</span><span class="n">ESRCH</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">worker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">WORKERS</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">pid</span><span class="p">)</span>
+                    <span class="n">worker</span><span class="o">.</span><span class="n">tmp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">worker_exit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker</span><span class="p">)</span>
+                    <span class="k">return</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">):</span>
+                    <span class="k">return</span>
+            <span class="k">raise</span>
+</pre></div>
+    </div>
+    <div class="col-sm-4">
+      <div class="highlight"><pre><span class="c1"><span class="c">#</span> -*- coding: utf-8 -</span>
+<span class="c1"><span class="c">#</span></span>
+<span class="c1"><span class="c">#</span> This file is part of gunicorn released under the MIT license.</span>
+<span class="c1"><span class="c">#</span> See the NOTICE for more information.</span>
+
+<span class="nl">from</span> __future__ <span class="nl">import</span> with_statement
+
+<span class="nl">import</span> errno
+<span class="nl">import</span> os
+<span class="nl">import</span> select
+<span class="nl">import</span> signal
+<span class="nl">import</span> sys
+<span class="nl">import</span> time
+<span class="nl">import</span> traceback
+
+
+<span class="nl">from</span> gunicorn.errors <span class="nl">import</span> HaltServer
+<span class="nl">from</span> gunicorn.pidfile <span class="nl">import</span> Pidfile
+<span class="nl">from</span> gunicorn.sock <span class="nl">import</span> create_socket
+<span class="nl">from</span> gunicorn <span class="nl">import</span> util
+
+<span class="nl">from</span> gunicorn <span class="nl">import</span> __version__, SERVER_SOFTWARE
+
+<span class="kt">class</span> <span class="nc">Arbiter</span>(<span class="k">object</span>):
+    <span class="s2"><span class="s2">&quot;&quot;&quot;</span></span>
+<span class="s2">    Arbiter maintain the workers processes alive. It launches or</span>
+<span class="s2">    kills them if needed. It also manages application reloading</span>
+<span class="s2">    via SIGHUP/USR2.</span>
+<span class="s2">    <span class="s2">&quot;&quot;&quot;</span></span>
+
+<span class="w">    </span><span class="c1"><span class="c">#</span> A flag indicating if a worker failed to</span>
+    <span class="c1"><span class="c">#</span> to boot. If a worker process exist with</span>
+    <span class="c1"><span class="c">#</span> this error code, the arbiter will terminate.</span>
+    WORKER_BOOT_ERROR <span class="o">=</span> <span class="m">3</span>
+
+    START_CTX <span class="o">=</span> {}
+
+    LISTENER <span class="o">=</span> <span class="kp">None</span>
+    WORKERS <span class="o">=</span> {}
+    PIPE <span class="o">=</span> []
+
+<span class="w">    </span><span class="c1"><span class="c">#</span> I love dynamic languages</span>
+    SIG_QUEUE <span class="o">=</span> []
+    SIGNALS <span class="o">=</span> <span class="k">map</span>(
+        <span class="kt">lambda</span> x: <span class="k">getattr</span>(signal, <span class="s2"><span class="s2">&quot;</span>SIG<span class="s2">%s</span><span class="s2">&quot;</span></span> <span class="o">%</span> x),
+        <span class="s2"><span class="s2">&quot;</span>HUP QUIT INT TERM TTIN TTOU USR1 USR2 WINCH<span class="s2">&quot;</span></span>.split()
+    )
+    SIG_NAMES <span class="o">=</span> <span class="k">dict</span>(
+        (<span class="k">getattr</span>(signal, name), name[<span class="m">3</span>:].lower()) <span class="nl">for</span> name <span class="o">in</span> <span class="k">dir</span>(signal)
+        <span class="nl">if</span> name[:<span class="m">3</span>] <span class="o">==</span> <span class="s2"><span class="s2">&quot;</span>SIG<span class="s2">&quot;</span></span> <span class="o">and</span> name[<span class="m">3</span>] <span class="o">!=</span> <span class="s2"><span class="s2">&quot;</span>_<span class="s2">&quot;</span></span>
+    )
+
+    <span class="kt">def</span> <span class="nf"><span class="k">__init__</span></span>(self, app):
+        os.environ[<span class="s2"><span class="s2">&quot;</span>SERVER_SOFTWARE<span class="s2">&quot;</span></span>] <span class="o">=</span> SERVER_SOFTWARE
+
+        <span class="kr">self</span>.setup(app)
+
+        <span class="kr">self</span>.pidfile <span class="o">=</span> <span class="kp">None</span>
+        <span class="kr">self</span>.worker_age <span class="o">=</span> <span class="m">0</span>
+        <span class="kr">self</span>.reexec_pid <span class="o">=</span> <span class="m">0</span>
+        <span class="kr">self</span>.master_name <span class="o">=</span> <span class="s2"><span class="s2">&quot;</span>Master<span class="s2">&quot;</span></span>
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> get current path, try to use PWD env first</span>
+        <span class="nl">try</span>:
+            a <span class="o">=</span> os.stat(os.environ[<span class="sb"><span class="sb">&#39;</span>PWD<span class="sb">&#39;</span></span>])
+            b <span class="o">=</span> os.stat(os.getcwd())
+            <span class="nl">if</span> a.ino <span class="o">==</span> b.ino <span class="o">and</span> a.dev <span class="o">==</span> b.dev:
+                cwd <span class="o">=</span> os.environ[<span class="sb"><span class="sb">&#39;</span>PWD<span class="sb">&#39;</span></span>]
+            <span class="nl">else</span>:
+                cwd <span class="o">=</span> os.getcwd()
+        <span class="nl">except</span>:
+            cwd <span class="o">=</span> os.getcwd()
+
+        args <span class="o">=</span> sys.argv[:]
+        args.insert(<span class="m">0</span>, sys.executable)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> init start context</span>
+        <span class="kr">self</span>.START_CTX <span class="o">=</span> {
+            <span class="s2"><span class="s2">&quot;</span>args<span class="s2">&quot;</span></span>: args,
+            <span class="s2"><span class="s2">&quot;</span>cwd<span class="s2">&quot;</span></span>: cwd,
+            <span class="m">0</span>: sys.executable
+        }
+
+    <span class="kt">def</span> <span class="nf">setup</span>(self, app):
+        <span class="kr">self</span>.app <span class="o">=</span> app
+        <span class="kr">self</span>.cfg <span class="o">=</span> app.cfg
+        <span class="kr">self</span>.log <span class="o">=</span> <span class="kr">self</span>.cfg.logger_class(app.cfg)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> reopen files</span>
+        <span class="nl">if</span> <span class="sb"><span class="sb">&#39;</span>GUNICORN_FD<span class="sb">&#39;</span></span> <span class="o">in</span> os.environ:
+            <span class="kr">self</span>.log.reopen_files()
+
+        <span class="kr">self</span>.address <span class="o">=</span> <span class="kr">self</span>.cfg.address
+        <span class="kr">self</span>.num_workers <span class="o">=</span> <span class="kr">self</span>.cfg.workers
+        <span class="kr">self</span>.debug <span class="o">=</span> <span class="kr">self</span>.cfg.debug
+        <span class="kr">self</span>.timeout <span class="o">=</span> <span class="kr">self</span>.cfg.timeout
+        <span class="kr">self</span>.proc_name <span class="o">=</span> <span class="kr">self</span>.cfg.proc_name
+        <span class="kr">self</span>.worker_class <span class="o">=</span> <span class="kr">self</span>.cfg.worker_class
+
+        <span class="nl">if</span> <span class="kr">self</span>.cfg.debug:
+            <span class="kr">self</span>.log.debug(<span class="s2"><span class="s2">&quot;</span>Current configuration:<span class="s2">&quot;</span></span>)
+            <span class="nl">for</span> config, value <span class="o">in</span> <span class="k">sorted</span>(<span class="kr">self</span>.cfg.settings.iteritems()):
+                <span class="kr">self</span>.log.debug(<span class="s2"><span class="s2">&quot;</span>  <span class="s2">%s</span>: <span class="s2">%s</span><span class="s2">&quot;</span></span>, config, value.value)
+
+        <span class="nl">if</span> <span class="kr">self</span>.cfg.preload_app:
+            <span class="nl">if</span> <span class="o">not</span> <span class="kr">self</span>.cfg.debug:
+                <span class="kr">self</span>.app.wsgi()
+            <span class="nl">else</span>:
+                <span class="kr">self</span>.log.warning(<span class="s2"><span class="s2">&quot;</span>debug mode: app isn&#39;t preloaded.<span class="s2">&quot;</span></span>)
+
+    <span class="kt">def</span> <span class="nf">start</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Initialize the arbiter. Start listening and set pidfile if needed.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Starting gunicorn <span class="s2">%s</span><span class="s2">&quot;</span></span>, __version__)
+        <span class="kr">self</span>.cfg.on_starting(<span class="kr">self</span>)
+        <span class="kr">self</span>.pid <span class="o">=</span> os.getpid()
+        <span class="kr">self</span>.init_signals()
+        <span class="nl">if</span> <span class="o">not</span> <span class="kr">self</span>.LISTENER:
+            <span class="kr">self</span>.LISTENER <span class="o">=</span> create_socket(<span class="kr">self</span>.cfg, <span class="kr">self</span>.log)
+
+        <span class="nl">if</span> <span class="kr">self</span>.cfg.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.pidfile <span class="o">=</span> Pidfile(<span class="kr">self</span>.cfg.pidfile)
+            <span class="kr">self</span>.pidfile.create(<span class="kr">self</span>.pid)
+        <span class="kr">self</span>.log.debug(<span class="s2"><span class="s2">&quot;</span>Arbiter booted<span class="s2">&quot;</span></span>)
+        <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Listening at: <span class="s2">%s</span> (<span class="s2">%s</span>)<span class="s2">&quot;</span></span>, <span class="kr">self</span>.LISTENER,
+            <span class="kr">self</span>.pid)
+        <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Using worker: <span class="s2">%s</span><span class="s2">&quot;</span></span>,
+                <span class="kr">self</span>.cfg.settings[<span class="sb"><span class="sb">&#39;</span>worker_class<span class="sb">&#39;</span></span>].get())
+
+        <span class="kr">self</span>.cfg.when_ready(<span class="kr">self</span>)
+
+    <span class="kt">def</span> <span class="nf">init_signals</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Initialize master signal handling. Most of the signals</span>
+<span class="s2">        are queued. Child signals only wake up the master.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">if</span> <span class="kr">self</span>.PIPE:
+            <span class="k">map</span>(os.close, <span class="kr">self</span>.PIPE)
+        <span class="kr">self</span>.PIPE <span class="o">=</span> pair <span class="o">=</span> os.pipe()
+        <span class="k">map</span>(util.set_non_blocking, pair)
+        <span class="k">map</span>(util.close_on_exec, pair)
+        <span class="kr">self</span>.log.close_on_exec()
+        <span class="k">map</span>(<span class="kt">lambda</span> s: signal.signal(s, <span class="kr">self</span>.signal), <span class="kr">self</span>.SIGNALS)
+        signal.signal(signal.SIGCHLD, <span class="kr">self</span>.handle_chld)
+
+    <span class="kt">def</span> <span class="nf">signal</span>(self, sig, frame):
+        <span class="nl">if</span> <span class="k">len</span>(<span class="kr">self</span>.SIG_QUEUE) <span class="o">&lt;</span> <span class="m">5</span>:
+            <span class="kr">self</span>.SIG_QUEUE.append(sig)
+            <span class="kr">self</span>.wakeup()
+
+    <span class="kt">def</span> <span class="nf">run</span>(self):
+        <span class="s2"><span class="s2">&quot;</span>Main master loop.<span class="s2">&quot;</span></span>
+        <span class="kr">self</span>.start()
+        util._setproctitle(<span class="s2"><span class="s2">&quot;</span>master [<span class="s2">%s</span>]<span class="s2">&quot;</span></span> <span class="o">%</span> <span class="kr">self</span>.proc_name)
+
+        <span class="kr">self</span>.manage_workers()
+        <span class="nl">while</span> <span class="kp">True</span>:
+            <span class="nl">try</span>:
+                <span class="kr">self</span>.reap_workers()
+                sig <span class="o">=</span> <span class="kr">self</span>.SIG_QUEUE.pop(<span class="m">0</span>) <span class="nl">if</span> <span class="k">len</span>(<span class="kr">self</span>.SIG_QUEUE) <span class="nl">else</span> <span class="kp">None</span>
+                <span class="nl">if</span> sig <span class="o">is</span> <span class="kp">None</span>:
+                    <span class="kr">self</span>.sleep()
+                    <span class="kr">self</span>.murder_workers()
+                    <span class="kr">self</span>.manage_workers()
+                    <span class="nl">continue</span>
+
+                <span class="nl">if</span> sig <span class="o">not</span> <span class="o">in</span> <span class="kr">self</span>.SIG_NAMES:
+                    <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Ignoring unknown signal: <span class="s2">%s</span><span class="s2">&quot;</span></span>, sig)
+                    <span class="nl">continue</span>
+
+                signame <span class="o">=</span> <span class="kr">self</span>.SIG_NAMES.get(sig)
+                handler <span class="o">=</span> <span class="k">getattr</span>(<span class="kr">self</span>, <span class="s2"><span class="s2">&quot;</span>handle_<span class="s2">%s</span><span class="s2">&quot;</span></span> <span class="o">%</span> signame, <span class="kp">None</span>)
+                <span class="nl">if</span> <span class="o">not</span> handler:
+                    <span class="kr">self</span>.log.error(<span class="s2"><span class="s2">&quot;</span>Unhandled signal: <span class="s2">%s</span><span class="s2">&quot;</span></span>, signame)
+                    <span class="nl">continue</span>
+                <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Handling signal: <span class="s2">%s</span><span class="s2">&quot;</span></span>, signame)
+                handler()
+                <span class="kr">self</span>.wakeup()
+            <span class="nl">except</span> <span class="ne">StopIteration</span>:
+                <span class="kr">self</span>.halt()
+            <span class="nl">except</span> <span class="ne">KeyboardInterrupt</span>:
+                <span class="kr">self</span>.halt()
+            <span class="nl">except</span> HaltServer, inst:
+                <span class="kr">self</span>.halt(reason<span class="o">=</span>inst.reason, exit_status<span class="o">=</span>inst.exit_status)
+            <span class="nl">except</span> <span class="ne">SystemExit</span>:
+                <span class="nl">raise</span>
+            <span class="nl">except</span> <span class="ne">Exception</span>:
+                <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Unhandled exception in main loop:<span class="se">\n</span><span class="s2">%s</span><span class="s2">&quot;</span></span>,
+                            traceback.format_exc())
+                <span class="kr">self</span>.stop(<span class="kp">False</span>)
+                <span class="nl">if</span> <span class="kr">self</span>.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+                    <span class="kr">self</span>.pidfile.unlink()
+                sys.exit(<span class="o">-</span><span class="m">1</span>)
+
+    <span class="kt">def</span> <span class="nf">handle_chld</span>(self, sig, frame):
+        <span class="s2"><span class="s2">&quot;</span>SIGCHLD handling<span class="s2">&quot;</span></span>
+        <span class="kr">self</span>.wakeup()
+
+    <span class="kt">def</span> <span class="nf">handle_hup</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        HUP handling.</span>
+<span class="s2">        - Reload configuration</span>
+<span class="s2">        - Start the new worker processes with a new configuration</span>
+<span class="s2">        - Gracefully shutdown the old worker processes</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Hang up: <span class="s2">%s</span><span class="s2">&quot;</span></span>, <span class="kr">self</span>.master_name)
+        <span class="kr">self</span>.reload()
+
+    <span class="kt">def</span> <span class="nf">handle_quit</span>(self):
+        <span class="s2"><span class="s2">&quot;</span>SIGQUIT handling<span class="s2">&quot;</span></span>
+        <span class="nl">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="kt">def</span> <span class="nf">handle_int</span>(self):
+        <span class="s2"><span class="s2">&quot;</span>SIGINT handling<span class="s2">&quot;</span></span>
+        <span class="kr">self</span>.stop(<span class="kp">False</span>)
+        <span class="nl">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="kt">def</span> <span class="nf">handle_term</span>(self):
+        <span class="s2"><span class="s2">&quot;</span>SIGTERM handling<span class="s2">&quot;</span></span>
+        <span class="kr">self</span>.stop(<span class="kp">False</span>)
+        <span class="nl">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="kt">def</span> <span class="nf">handle_ttin</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        SIGTTIN handling.</span>
+<span class="s2">        Increases the number of workers by one.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.num_workers <span class="o">+=</span> <span class="m">1</span>
+        <span class="kr">self</span>.manage_workers()
+
+    <span class="kt">def</span> <span class="nf">handle_ttou</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        SIGTTOU handling.</span>
+<span class="s2">        Decreases the number of workers by one.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">if</span> <span class="kr">self</span>.num_workers <span class="o">&lt;=</span> <span class="m">1</span>:
+            <span class="nl">return</span>
+        <span class="kr">self</span>.num_workers <span class="o">-=</span> <span class="m">1</span>
+        <span class="kr">self</span>.manage_workers()
+
+    <span class="kt">def</span> <span class="nf">handle_usr1</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        SIGUSR1 handling.</span>
+<span class="s2">        Kill all workers by sending them a SIGUSR1</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.kill_workers(signal.SIGUSR1)
+        <span class="kr">self</span>.log.reopen_files()
+
+    <span class="kt">def</span> <span class="nf">handle_usr2</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        SIGUSR2 handling.</span>
+<span class="s2">        Creates a new master/worker set as a slave of the current</span>
+<span class="s2">        master without affecting old workers. Use this to do live</span>
+<span class="s2">        deployment with the ability to backout a change.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.reexec()
+
+    <span class="kt">def</span> <span class="nf">handle_winch</span>(self):
+        <span class="s2"><span class="s2">&quot;</span>SIGWINCH handling<span class="s2">&quot;</span></span>
+        <span class="nl">if</span> os.getppid() <span class="o">==</span> <span class="m">1</span> <span class="o">or</span> os.getpgrp() <span class="o">!=</span> os.getpid():
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>graceful stop of workers<span class="s2">&quot;</span></span>)
+            <span class="kr">self</span>.num_workers <span class="o">=</span> <span class="m">0</span>
+            <span class="kr">self</span>.kill_workers(signal.SIGQUIT)
+        <span class="nl">else</span>:
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>SIGWINCH ignored. Not daemonized<span class="s2">&quot;</span></span>)
+
+    <span class="kt">def</span> <span class="nf">wakeup</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Wake up the arbiter by writing to the PIPE</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">try</span>:
+            os.write(<span class="kr">self</span>.PIPE[<span class="m">1</span>], <span class="sb"><span class="sb">&#39;</span>.<span class="sb">&#39;</span></span>)
+        <span class="nl">except</span> <span class="ne">IOError</span>, e:
+            <span class="nl">if</span> e.errno <span class="o">not</span> <span class="o">in</span> [errno.EAGAIN, errno.EINTR]:
+                <span class="nl">raise</span>
+
+    <span class="kt">def</span> <span class="nf">halt</span>(self, reason<span class="o">=</span><span class="kp">None</span>, exit_status<span class="o">=</span><span class="m">0</span>):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span> halt arbiter <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="kr">self</span>.stop()
+        <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Shutting down: <span class="s2">%s</span><span class="s2">&quot;</span></span>, <span class="kr">self</span>.master_name)
+        <span class="nl">if</span> reason <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Reason: <span class="s2">%s</span><span class="s2">&quot;</span></span>, reason)
+        <span class="nl">if</span> <span class="kr">self</span>.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.pidfile.unlink()
+        sys.exit(exit_status)
+
+    <span class="kt">def</span> <span class="nf">sleep</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Sleep until PIPE is readable or we timeout.</span>
+<span class="s2">        A readable PIPE means a signal occurred.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">try</span>:
+            ready <span class="o">=</span> select.select([<span class="kr">self</span>.PIPE[<span class="m">0</span>]], [], [], <span class="mf">1.0</span>)
+            <span class="nl">if</span> <span class="o">not</span> ready[<span class="m">0</span>]:
+                <span class="nl">return</span>
+            <span class="nl">while</span> os.read(<span class="kr">self</span>.PIPE[<span class="m">0</span>], <span class="m">1</span>):
+                <span class="nl">pass</span>
+        <span class="nl">except</span> select.error, e:
+            <span class="nl">if</span> e[<span class="m">0</span>] <span class="o">not</span> <span class="o">in</span> [errno.EAGAIN, errno.EINTR]:
+                <span class="nl">raise</span>
+        <span class="nl">except</span> <span class="ne">OSError</span>, e:
+            <span class="nl">if</span> e.errno <span class="o">not</span> <span class="o">in</span> [errno.EAGAIN, errno.EINTR]:
+                <span class="nl">raise</span>
+        <span class="nl">except</span> <span class="ne">KeyboardInterrupt</span>:
+            sys.exit()
+
+
+    <span class="kt">def</span> <span class="nf">stop</span>(self, graceful<span class="o">=</span><span class="kp">True</span>):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Stop workers</span>
+<span class="s2"></span>
+<span class="s2">        :attr graceful: boolean, If True (the default) workers will be</span>
+<span class="s2">        killed gracefully  (ie. trying to wait for the current connection)</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">try</span>:
+            <span class="kr">self</span>.LISTENER.close()
+        <span class="nl">except</span> <span class="ne">Exception</span>:
+            <span class="nl">pass</span>
+        <span class="kr">self</span>.LISTENER <span class="o">=</span> <span class="kp">None</span>
+        sig <span class="o">=</span> signal.SIGQUIT
+        <span class="nl">if</span> <span class="o">not</span> graceful:
+            sig <span class="o">=</span> signal.SIGTERM
+        limit <span class="o">=</span> time.time() <span class="o">+</span> <span class="kr">self</span>.cfg.graceful_timeout
+        <span class="nl">while</span> <span class="kr">self</span>.WORKERS <span class="o">and</span> time.time() <span class="o">&lt;</span> limit:
+            <span class="kr">self</span>.kill_workers(sig)
+            time.sleep(<span class="mf">0.1</span>)
+            <span class="kr">self</span>.reap_workers()
+        <span class="kr">self</span>.kill_workers(signal.SIGKILL)
+
+    <span class="kt">def</span> <span class="nf">reexec</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Relaunch the master and workers.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">if</span> <span class="kr">self</span>.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.pidfile.rename(<span class="s2"><span class="s2">&quot;</span><span class="s2">%s</span>.oldbin<span class="s2">&quot;</span></span> <span class="o">%</span> <span class="kr">self</span>.pidfile.fname)
+
+        <span class="kr">self</span>.reexec_pid <span class="o">=</span> os.fork()
+        <span class="nl">if</span> <span class="kr">self</span>.reexec_pid <span class="o">!=</span> <span class="m">0</span>:
+            <span class="kr">self</span>.master_name <span class="o">=</span> <span class="s2"><span class="s2">&quot;</span>Old Master<span class="s2">&quot;</span></span>
+            <span class="nl">return</span>
+
+        os.environ[<span class="sb"><span class="sb">&#39;</span>GUNICORN_FD<span class="sb">&#39;</span></span>] <span class="o">=</span> <span class="k">str</span>(<span class="kr">self</span>.LISTENER.fileno())
+        os.chdir(<span class="kr">self</span>.START_CTX[<span class="sb"><span class="sb">&#39;</span>cwd<span class="sb">&#39;</span></span>])
+        <span class="kr">self</span>.cfg.pre_exec(<span class="kr">self</span>)
+        util.closerange(<span class="m">3</span>, <span class="kr">self</span>.LISTENER.fileno())
+        util.closerange(<span class="kr">self</span>.LISTENER.fileno()<span class="o">+</span><span class="m">1</span>, util.get_maxfd())
+        os.execvpe(<span class="kr">self</span>.START_CTX[<span class="m">0</span>], <span class="kr">self</span>.START_CTX[<span class="sb"><span class="sb">&#39;</span>args<span class="sb">&#39;</span></span>], os.environ)
+
+    <span class="kt">def</span> <span class="nf">reload</span>(self):
+        old_address <span class="o">=</span> <span class="kr">self</span>.cfg.address
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> reload conf</span>
+        <span class="kr">self</span>.app.reload()
+        <span class="kr">self</span>.setup(<span class="kr">self</span>.app)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> reopen log files</span>
+        <span class="kr">self</span>.log.reopen_files()
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> do we need to change listener ?</span>
+        <span class="nl">if</span> old_address <span class="o">!=</span> <span class="kr">self</span>.cfg.address:
+            <span class="kr">self</span>.LISTENER.close()
+            <span class="kr">self</span>.LISTENER <span class="o">=</span> create_socket(<span class="kr">self</span>.cfg, <span class="kr">self</span>.log)
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Listening at: <span class="s2">%s</span><span class="s2">&quot;</span></span>, <span class="kr">self</span>.LISTENER)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> do some actions on reload</span>
+        <span class="kr">self</span>.cfg.on_reload(<span class="kr">self</span>)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> unlink pidfile</span>
+        <span class="nl">if</span> <span class="kr">self</span>.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.pidfile.unlink()
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> create new pidfile</span>
+        <span class="nl">if</span> <span class="kr">self</span>.cfg.pidfile <span class="o">is</span> <span class="o">not</span> <span class="kp">None</span>:
+            <span class="kr">self</span>.pidfile <span class="o">=</span> Pidfile(<span class="kr">self</span>.cfg.pidfile)
+            <span class="kr">self</span>.pidfile.create(<span class="kr">self</span>.pid)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> set new proc_name</span>
+        util._setproctitle(<span class="s2"><span class="s2">&quot;</span>master [<span class="s2">%s</span>]<span class="s2">&quot;</span></span> <span class="o">%</span> <span class="kr">self</span>.proc_name)
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> spawn new workers</span>
+        <span class="nl">for</span> i <span class="o">in</span> <span class="k">range</span>(<span class="kr">self</span>.cfg.workers):
+            <span class="kr">self</span>.spawn_worker()
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> manage workers</span>
+        <span class="kr">self</span>.manage_workers()
+
+    <span class="kt">def</span> <span class="nf">murder_workers</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Kill unused/idle workers</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">for</span> (pid, worker) <span class="o">in</span> <span class="kr">self</span>.WORKERS.items():
+            <span class="nl">try</span>:
+                <span class="nl">if</span> time.time() <span class="o">-</span> worker.tmp.last_update() <span class="o">&lt;=</span> <span class="kr">self</span>.timeout:
+                    <span class="nl">continue</span>
+            <span class="nl">except</span> <span class="ne">ValueError</span>:
+                <span class="nl">continue</span>
+
+            <span class="kr">self</span>.log.critical(<span class="s2"><span class="s2">&quot;</span>WORKER TIMEOUT (pid:<span class="s2">%s</span>)<span class="s2">&quot;</span></span>, pid)
+            <span class="kr">self</span>.kill_worker(pid, signal.SIGKILL)
+
+    <span class="kt">def</span> <span class="nf">reap_workers</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Reap workers to avoid zombie processes</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">try</span>:
+            <span class="nl">while</span> <span class="kp">True</span>:
+                wpid, status <span class="o">=</span> os.waitpid(<span class="o">-</span><span class="m">1</span>, os.WNOHANG)
+                <span class="nl">if</span> <span class="o">not</span> wpid:
+                    <span class="nl">break</span>
+                <span class="nl">if</span> <span class="kr">self</span>.reexec_pid <span class="o">==</span> wpid:
+                    <span class="kr">self</span>.reexec_pid <span class="o">=</span> <span class="m">0</span>
+                <span class="nl">else</span>:
+<span class="w">                    </span><span class="c1"><span class="c">#</span> A worker said it cannot boot. We&#39;ll shutdown</span>
+                    <span class="c1"><span class="c">#</span> to avoid infinite start/stop cycles.</span>
+                    exitcode <span class="o">=</span> status <span class="o">&gt;</span><span class="o">&gt;</span> <span class="m">8</span>
+                    <span class="nl">if</span> exitcode <span class="o">==</span> <span class="kr">self</span>.WORKER_BOOT_ERROR:
+                        reason <span class="o">=</span> <span class="s2"><span class="s2">&quot;</span>Worker failed to boot.<span class="s2">&quot;</span></span>
+                        <span class="nl">raise</span> HaltServer(reason, <span class="kr">self</span>.WORKER_BOOT_ERROR)
+                    worker <span class="o">=</span> <span class="kr">self</span>.WORKERS.pop(wpid, <span class="kp">None</span>)
+                    <span class="nl">if</span> <span class="o">not</span> worker:
+                        <span class="nl">continue</span>
+                    worker.tmp.close()
+        <span class="nl">except</span> <span class="ne">OSError</span>, e:
+            <span class="nl">if</span> e.errno <span class="o">==</span> errno.ECHILD:
+                <span class="nl">pass</span>
+
+    <span class="kt">def</span> <span class="nf">manage_workers</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Maintain the number of workers by spawning or killing</span>
+<span class="s2">        as required.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">if</span> <span class="k">len</span>(<span class="kr">self</span>.WORKERS.keys()) <span class="o">&lt;</span> <span class="kr">self</span>.num_workers:
+            <span class="kr">self</span>.spawn_workers()
+
+        workers <span class="o">=</span> <span class="kr">self</span>.WORKERS.items()
+        workers.sort(key<span class="o">=</span><span class="kt">lambda</span> w: w[<span class="m">1</span>].age)
+        <span class="nl">while</span> <span class="k">len</span>(workers) <span class="o">&gt;</span> <span class="kr">self</span>.num_workers:
+            (pid, _) <span class="o">=</span> workers.pop(<span class="m">0</span>)
+            <span class="kr">self</span>.kill_worker(pid, signal.SIGQUIT)
+
+    <span class="kt">def</span> <span class="nf">spawn_worker</span>(self):
+        <span class="kr">self</span>.worker_age <span class="o">+=</span> <span class="m">1</span>
+        worker <span class="o">=</span> <span class="kr">self</span>.worker_class(<span class="kr">self</span>.worker_age, <span class="kr">self</span>.pid, <span class="kr">self</span>.LISTENER,
+                                    <span class="kr">self</span>.app, <span class="kr">self</span>.timeout<span class="o">/</span><span class="mf">2.0</span>,
+                                    <span class="kr">self</span>.cfg, <span class="kr">self</span>.log)
+        <span class="kr">self</span>.cfg.pre_fork(<span class="kr">self</span>, worker)
+        pid <span class="o">=</span> os.fork()
+        <span class="nl">if</span> pid <span class="o">!=</span> <span class="m">0</span>:
+            <span class="kr">self</span>.WORKERS[pid] <span class="o">=</span> worker
+            <span class="nl">return</span> pid
+
+<span class="w">        </span><span class="c1"><span class="c">#</span> Process Child</span>
+        worker_pid <span class="o">=</span> os.getpid()
+        <span class="nl">try</span>:
+            util._setproctitle(<span class="s2"><span class="s2">&quot;</span>worker [<span class="s2">%s</span>]<span class="s2">&quot;</span></span> <span class="o">%</span> <span class="kr">self</span>.proc_name)
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Booting worker with pid: <span class="s2">%s</span><span class="s2">&quot;</span></span>, worker_pid)
+            <span class="kr">self</span>.cfg.post_fork(<span class="kr">self</span>, worker)
+            worker.init_process()
+            sys.exit(<span class="m">0</span>)
+        <span class="nl">except</span> <span class="ne">SystemExit</span>:
+            <span class="nl">raise</span>
+        <span class="nl">except</span>:
+            <span class="kr">self</span>.log.debug(<span class="s2"><span class="s2">&quot;</span>Exception in worker process:<span class="se">\n</span><span class="s2">%s</span><span class="s2">&quot;</span></span>,
+                    traceback.format_exc())
+            <span class="nl">if</span> <span class="o">not</span> worker.booted:
+                sys.exit(<span class="kr">self</span>.WORKER_BOOT_ERROR)
+            sys.exit(<span class="o">-</span><span class="m">1</span>)
+        <span class="nl">finally</span>:
+            <span class="kr">self</span>.log.info(<span class="s2"><span class="s2">&quot;</span>Worker exiting (pid: <span class="s2">%s</span>)<span class="s2">&quot;</span></span>, worker_pid)
+            <span class="nl">try</span>:
+                worker.tmp.close()
+                <span class="kr">self</span>.cfg.worker_exit(<span class="kr">self</span>, worker)
+            <span class="nl">except</span>:
+                <span class="nl">pass</span>
+
+    <span class="kt">def</span> <span class="nf">spawn_workers</span>(self):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Spawn new workers as needed.</span>
+<span class="s2"></span>
+<span class="s2">        This is where a worker process leaves the main loop</span>
+<span class="s2">        of the master process.</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+
+        <span class="nl">for</span> i <span class="o">in</span> <span class="k">range</span>(<span class="kr">self</span>.num_workers <span class="o">-</span> <span class="k">len</span>(<span class="kr">self</span>.WORKERS.keys())):
+            <span class="kr">self</span>.spawn_worker()
+
+    <span class="kt">def</span> <span class="nf">kill_workers</span>(self, sig):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Kill all workers with the signal `sig`</span>
+<span class="s2">        :attr sig: `signal.SIG*` value</span>
+<span class="s2">        <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">for</span> pid <span class="o">in</span> <span class="kr">self</span>.WORKERS.keys():
+            <span class="kr">self</span>.kill_worker(pid, sig)
+
+    <span class="kt">def</span> <span class="nf">kill_worker</span>(self, pid, sig):
+        <span class="s2"><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span></span>
+<span class="s2">        Kill a worker</span>
+<span class="s2"></span>
+<span class="s2">        :attr pid: int, worker pid</span>
+<span class="s2">        :attr sig: `signal.SIG*` value</span>
+<span class="s2">         <span class="s2">&quot;&quot;&quot;</span></span>
+        <span class="nl">try</span>:
+            os.kill(pid, sig)
+        <span class="nl">except</span> <span class="ne">OSError</span>, e:
+            <span class="nl">if</span> e.errno <span class="o">==</span> errno.ESRCH:
+                <span class="nl">try</span>:
+                    worker <span class="o">=</span> <span class="kr">self</span>.WORKERS.pop(pid)
+                    worker.tmp.close()
+                    <span class="kr">self</span>.cfg.worker_exit(<span class="kr">self</span>, worker)
+                    <span class="nl">return</span>
+                <span class="nl">except</span> (<span class="ne">KeyError</span>, <span class="ne">OSError</span>):
+                    <span class="nl">return</span>
+            <span class="nl">raise</span>
+</pre></div>
+    </div>
+    <div class="col-sm-2">
+
+    </div>
+  </div>
+</div>
+
+</body>
+
+<html>
