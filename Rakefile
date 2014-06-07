@@ -11,6 +11,14 @@ Rake::TestTask.new do |t|
   t.verbose = true
 end
 
+def language_to_ul(language_to_data)
+  contents = "<ul>"
+  contents << language_to_data.keys.map do |language|
+    %|<li><a href="#{language}.html">#{language}</a></li>|
+  end
+  contents << "</ul>"
+end
+
 desc "Generate samples site"
 task :publish do
   require "pygments"
@@ -29,13 +37,14 @@ task :publish do
   lang_template = File.read("docs/_templates/language.html")
 
   index = Tempfile.new('index.html')
-  index.write(index_template.sub("{{ language_list }}", "<ul><li>#{language_to_data.keys.join('</li><li>')}</li></ul>"))
+  index.write(index_template.sub("{{ language_list }}", language_to_ul(language_to_data)))
   files_to_copy << index.path
 
   language_to_data.each do |language, file_data|
     lang = Tempfile.new("#{language}.html")
-    contents = lang_template.sub("{{ POINTILLIST_OUTPUT }}", Pygments.highlight(file_data, :lexer => language.downcase))
-    contents = lang_template.sub("{{ PYGMENTS_OUTPUT }}", Pointillist.highlight(file_data, language))
+    contents = lang_template.sub("{{ language_list }}", language_to_ul(language_to_data)))
+    contents = contents.sub("{{ POINTILLIST_OUTPUT }}", Pygments.highlight(file_data, :lexer => language.downcase))
+    contents = contents.sub("{{ PYGMENTS_OUTPUT }}", Pointillist.highlight(file_data, language))
     lang.write(contents)
     files_to_copy << lang.path
   end
