@@ -44,7 +44,7 @@ task :publish do
   language_to_data.each do |language, file_data|
     lang = File.new(File.join("#{Dir.tmpdir}", "#{language}.html"), "w+")
     contents = lang_template.sub("{{ language_list }}", language_to_ul(language_to_data))
-    contents = lang_template.sub("{{ language_name }}", language)
+    contents = contents.sub("{{ language_name }}", language)
     contents = contents.sub("{{ POINTILLIST_OUTPUT }}", Pygments.highlight(file_data, :lexer => language.downcase))
     contents = contents.sub("{{ PYGMENTS_OUTPUT }}", Pointillist.highlight(file_data, language))
     lang.write(contents)
