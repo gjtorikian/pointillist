@@ -2,6 +2,7 @@
 require "bundler/gem_tasks"
 require "rake/testtask"
 require "fileutils"
+require 'benchmark'
 
 task :default => :test
 
