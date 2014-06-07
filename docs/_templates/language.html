@@ -30,6 +30,7 @@
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">Languages <b class="caret"></b></a>
             {{ language_list }}
           </li>
+          <li><a href="#">{{ language_name }}</a></li>
         </ul>
       </div><!-- /.navbar-collapse -->
     </div><!-- /.container-fluid -->
@@ -38,9 +39,11 @@
   <div class="container">
     <div class="row">
       <div class="col-sm-6">
+        <h5>Pointillist</h5>
         {{ POINTILLIST_OUTPUT }}
       </div>
       <div class="col-sm-6">
+        <h5>Pygments</h5>
         {{ PYGMENTS_OUTPUT }}
       </div>
     </div>
