@@ -9,6 +9,7 @@
 </head>
 
 <body>
+
   <nav class="navbar navbar-default" role="navigation">
     <div class="container-fluid">
       <!-- Brand and toggle get grouped for better mobile display -->
@@ -27,8 +28,12 @@
         <ul class="nav navbar-nav">
           <li class="dropdown">
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">Languages <b class="caret"></b></a>
-            {{ language_list }}
+            <ul class="dropdown-menu" role="menu"><li><a href="C.html">C</a></li>
+<li><a href="CoffeeScript.html">CoffeeScript</a></li>
+<li><a href="Python.html">Python</a></li>
+<li><a href="Ruby.html">Ruby</a></li></ul>
           </li>
+          <li><a href="#">{{ language_name }}</a></li>
         </ul>
       </div><!-- /.navbar-collapse -->
     </div><!-- /.container-fluid -->
@@ -37,6 +42,7 @@
   <div class="container">
     <div class="row">
       <div class="col-sm-6">
+        <h5>Pointillist</h5>
         <div class="highlight"><pre><span class="c1"># Examples from the Poignant Guide.</span>
 <span class="c1"># These are examples of syntax differences between CoffeeScript and Ruby,</span>
 <span class="c1"># they won&#39;t run.</span>
@@ -218,6 +224,7 @@
 </pre></div>
       </div>
       <div class="col-sm-6">
+        <h5>Pygments</h5>
         <div class="highlight"><pre><span class="c1"><span class="c">#</span> Examples from the Poignant Guide.</span>
 <span class="c1"><span class="c">#</span> These are examples of syntax differences between CoffeeScript and Ruby,</span>
 <span class="c1"><span class="c">#</span> they won&#39;t run.</span>
