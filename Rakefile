@@ -54,9 +54,9 @@ task :publish do
   system "git checkout gh-pages"
   message = "Site updated at #{Time.now.utc}"
   files_to_copy.each { |file| FileUtils.copy(file, ".") }
-  # system "git add ."
-  # system "git commit -am #{message.shellescape}"
-  # system "git push origin gh-pages --force"
-  # system "git checkout master"
-  # system "echo yolo"
+  system "git add ."
+  system "git commit -am #{message.shellescape}"
+  system "git push origin gh-pages --force"
+  system "git checkout master"
+  system "echo yolo"
 end
