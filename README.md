@@ -40,3 +40,7 @@ In this example, when Textpow detects a string falling within a `comment.line.nu
 
 [coffeescript grammar]: https://github.com/atom/language-coffee-script/blob/0fb5046daa4a521196f9874260917d22ac2c23d6/grammars/coffeescript.cson
 [Textpow]: https://github.com/grosser/textpow
+
+### What if I don't lke Pygments?
+
+Hey, that's cool. The definition for the HTML output is defined [as a YAML file](https://github.com/gjtorikian/pointillist/blob/master/lib/pointillist/pygments.render). You could write your own render format as an array of keys containing `begin`, `end`, and `selector`.
