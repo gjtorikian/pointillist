@@ -1,3 +1,8 @@
 .container {
   width: auto;
 }
+
+.headline {
+  padding: 40px 15px;
+  text-align: center;
+}
